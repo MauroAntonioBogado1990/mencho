@@ -3,7 +3,9 @@ from sqlalchemy.orm import Session
 from typing import List
 from app.core.database import get_db
 from app.models.animal import Animal
-from app.schemas.animal import AnimalCreate, AnimalOut
+from app.schemas.animal import AnimalCreate, AnimalOut, AnimalUpdate
+from app.models.pesaje import Pesaje
+from app.schemas.pesaje import PesajeCreate, PesajeOut
 
 router = APIRouter(prefix="/animales", tags=["Animales"])
 
@@ -45,3 +47,21 @@ def actualizar_animal(animal_id: int, obj_in: AnimalUpdate, db: Session = Depend
     db.commit()
     db.refresh(db_animal)
     return db_animal
+
+@router.post("/registrar-peso", response_model=PesajeOut)
+def registrar_peso(pesaje: PesajeCreate, db: Session = Depends(get_db)):
+    # 1. Verificar que el animal existe
+    db_animal = db.query(Animal).filter(Animal.id == pesaje.animal_id).first()
+    if not db_animal:
+        raise HTTPException(status_code=404, detail="Animal no encontrado")
+    
+    # 2. Crear el registro de pesaje
+    nuevo_pesaje = Pesaje(**pesaje.model_dump())
+    
+    # 3. Actualizar el 'peso_actual' en la tabla de Animal (Sincronización)
+    db_animal.peso_actual = pesaje.peso
+    
+    db.add(nuevo_pesaje)
+    db.commit()
+    db.refresh(nuevo_pesaje)
+    return nuevo_pesaje

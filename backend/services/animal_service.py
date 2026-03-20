@@ -12,6 +12,8 @@ def get_animal_by_id(db: Session, animal_id: int):
     return db.query(Animal).filter(Animal.id == animal_id).first()
 
 def crear_animal(db: Session, animal_in: AnimalCreate):
+    if get_animal_by_caravana(db, animal_in.caravana):
+        raise CaravanaDuplicadaException(animal_in.caravana)
     nuevo_animal = Animal(**animal_in.model_dump())
     db.add(nuevo_animal)
     db.commit()
@@ -30,24 +32,9 @@ def actualizar_animal(db: Session, db_animal: Animal, obj_in: AnimalUpdate):
     return db_animal
 
 def registrar_pesaje_sincronizado(db: Session, pesaje_in: PesajeCreate, db_animal: Animal):
-    # Crear registro de pesaje
     nuevo_pesaje = Pesaje(**pesaje_in.model_dump())
-    # Sincronizar peso en el animal
     db_animal.peso_actual = pesaje_in.peso
-    
     db.add(nuevo_pesaje)
     db.commit()
     db.refresh(nuevo_pesaje)
     return nuevo_pesaje
-
-
-def crear_animal(db: Session, animal_in: AnimalCreate):
-    if get_animal_by_caravana(db, animal_in.caravana):
-        # Ya no lanzamos HTTPException, lanzamos nuestra excepción de negocio
-        raise CaravanaDuplicadaException(animal_in.caravana)
-    
-    nuevo_animal = Animal(**animal_in.model_dump())
-    db.add(nuevo_animal)
-    db.commit()
-    db.refresh(nuevo_animal)
-    return nuevo_animal

@@ -1,53 +1,50 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../db/db';
-import { Plus, CloudOff, TrendingUp, Search, X, Home, HardHat, DoorOpen } from 'lucide-react';
+import { Plus, CloudOff, Search, X, Home, RefreshCw, Wifi, WifiOff } from 'lucide-react';
 import AddAnimalModal from '../components/AddAnimalModal';
 import AddWeighingModal from '../components/AddWeighingModal';
 import LotesPage from './LotesPage';
 import PerfilPage from './PerfilPage';
+import { sincronizarTodo } from '../api/syncService';
 
-// ── Iconos de emoji para especies ──────────────────────────────
+// ── Íconos emoji ───────────────────────────────────────────────
+const IconoVaca      = () => <span style={{fontSize:24,lineHeight:1}}>🐄</span>;
+const IconoSombrero  = () => <span style={{fontSize:24,lineHeight:1}}>🤠</span>;
+
 const especieEmoji = (e) => {
   if (!e) return '🐄';
   const l = e.toLowerCase();
-  if (l.includes('oveja') || l.includes('ovi')) return '🐑';
-  if (l.includes('bufalo') || l.includes('búfalo')) return '🦬';
-  if (l.includes('vaca') || l.includes('bov')) return '🐄';
-  if (l.includes('caballo') || l.includes('equi')) return '🐴';
-  if (l.includes('cerdo') || l.includes('port')) return '🐷';
-  return '🐾';
+  if (l.includes('oveja'))  return '🐑';
+  if (l.includes('búfalo') || l.includes('bufalo')) return '🦬';
+  if (l.includes('caballo')) return '🐴';
+  if (l.includes('cerdo'))  return '🐷';
+  return '🐄';
 };
 
-// ── Navbar Bottom ──────────────────────────────────────────────
+// ── NavBar ─────────────────────────────────────────────────────
+const NavBtn = ({ id, label, icon, tab, setTab }) => (
+  <button
+    onClick={() => setTab(id)}
+    className={`flex flex-col items-center gap-0.5 px-4 transition-all ${tab === id ? 'text-[#1D5E4D]' : 'text-[#A69C8A]'}`}
+  >
+    <span className={`${tab === id ? 'scale-110' : ''} transition-transform leading-none`}>{icon}</span>
+    <span className={`text-[10px] font-bold uppercase tracking-wider ${tab === id ? 'text-[#1D5E4D]' : 'text-[#C4B8AA]'}`}>{label}</span>
+    {tab === id && <span className="w-1 h-1 bg-[#1D5E4D] rounded-full mt-0.5" />}
+  </button>
+);
+
 const NavBar = ({ tab, setTab }) => (
   <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-100 flex items-center justify-around px-4 pt-2 pb-4 z-40 shadow-[0_-4px_20px_rgba(0,0,0,0.06)]">
-    {[
-      { id: 'inicio', icon: <Home size={22} />, label: 'Inicio' },
-      { id: 'lotes', icon: <DoorOpen size={22} />, label: 'Lotes' },
-      { id: 'perfil', icon: <HardHat size={22} />, label: 'Perfil' },
-    ].map(item => (
-      <button
-        key={item.id}
-        onClick={() => setTab(item.id)}
-        className={`flex flex-col items-center gap-0.5 px-4 transition-all ${
-          tab === item.id ? 'text-[#1D5E4D]' : 'text-[#A69C8A]'
-        }`}
-      >
-        <span className={`${tab === item.id ? 'scale-110' : ''} transition-transform`}>{item.icon}</span>
-        <span className={`text-[10px] font-bold uppercase tracking-wider ${tab === item.id ? 'text-[#1D5E4D]' : 'text-[#C4B8AA]'}`}>
-          {item.label}
-        </span>
-        {tab === item.id && <span className="w-1 h-1 bg-[#1D5E4D] rounded-full mt-0.5" />}
-      </button>
-    ))}
+    <NavBtn id="inicio" label="Inicio" icon={<Home size={22} />} tab={tab} setTab={setTab} />
+    <NavBtn id="lotes"  label="Lotes"  icon={<IconoVaca />}       tab={tab} setTab={setTab} />
+    <NavBtn id="perfil" label="Perfil" icon={<IconoSombrero />}   tab={tab} setTab={setTab} />
   </nav>
 );
 
-// ── Modal de búsqueda ──────────────────────────────────────────
+// ── Buscador Modal ─────────────────────────────────────────────
 const BuscadorModal = ({ isOpen, onClose, animales, onSelectAnimal }) => {
   const [query, setQuery] = useState('');
-
   if (!isOpen) return null;
 
   const resultados = animales?.filter(a => {
@@ -88,7 +85,6 @@ const BuscadorModal = ({ isOpen, onClose, animales, onSelectAnimal }) => {
           <div className="text-center py-12 text-[#A69C8A]">
             <Search size={40} className="mx-auto mb-3 opacity-40" />
             <p className="font-bold">Escribí para buscar</p>
-            <p className="text-sm mt-1">caravana, especie o raza</p>
           </div>
         ) : resultados.length === 0 ? (
           <div className="text-center py-12 text-[#A69C8A]">
@@ -117,13 +113,42 @@ const BuscadorModal = ({ isOpen, onClose, animales, onSelectAnimal }) => {
   );
 };
 
-// ── Página Principal ───────────────────────────────────────────
+// ── Página Inicio ──────────────────────────────────────────────
 const InicioPage = ({ onPesaje }) => {
-  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isModalOpen, setIsModalOpen]   = useState(false);
   const [buscadorOpen, setBuscadorOpen] = useState(false);
-  const [filtroLote, setFiltroLote] = useState(null); // null = "todo"
+  const [filtroLote, setFiltroLote]     = useState(null);
+  const [syncing, setSyncing]           = useState(false);
+  const [syncMsg, setSyncMsg]           = useState(null);
+  const [online, setOnline]             = useState(navigator.onLine);
+
   const animales = useLiveQuery(() => db.animales.toArray());
-  const lotes = useLiveQuery(() => db.lotes.toArray());
+  const lotes    = useLiveQuery(() => db.lotes.toArray());
+  const pendientes = useLiveQuery(() => db.animales.where('sincronizado').equals(0).count());
+
+  // Detectar estado online/offline
+  useEffect(() => {
+    const goOn  = () => setOnline(true);
+    const goOff = () => setOnline(false);
+    window.addEventListener('online',  goOn);
+    window.addEventListener('offline', goOff);
+    return () => { window.removeEventListener('online', goOn); window.removeEventListener('offline', goOff); };
+  }, []);
+
+  const handleSync = useCallback(async () => {
+    if (!online) { setSyncMsg('Sin conexión'); setTimeout(() => setSyncMsg(null), 2000); return; }
+    setSyncing(true);
+    setSyncMsg(null);
+    try {
+      const { push, pullCount } = await sincronizarTodo();
+      setSyncMsg(`↑${push.ok} subidos · ↓${pullCount} del servidor`);
+    } catch (err) {
+      setSyncMsg('Error al conectar con el servidor');
+    } finally {
+      setSyncing(false);
+      setTimeout(() => setSyncMsg(null), 3000);
+    }
+  }, [online]);
 
   const animalesFiltrados = useMemo(() => {
     if (!animales) return [];
@@ -133,6 +158,7 @@ const InicioPage = ({ onPesaje }) => {
 
   return (
     <div className="min-h-screen bg-[#F4F1ED] p-4 pb-28 text-[#2F3E3B]">
+
       {/* Header */}
       <header className="flex justify-between items-center mb-6 pt-2">
         <div>
@@ -142,6 +168,22 @@ const InicioPage = ({ onPesaje }) => {
           <p className="text-[11px] text-[#A69C8A] font-medium uppercase tracking-widest -mt-1">Gestión de Hacienda</p>
         </div>
         <div className="flex gap-2 items-center">
+          {/* Botón Sincronizar */}
+          <button
+            onClick={handleSync}
+            className={`relative p-2.5 rounded-full shadow-sm transition-all active:scale-95 ${
+              online ? 'bg-white text-[#1D5E4D] hover:bg-[#EAF4F0]' : 'bg-white text-[#A69C8A]'
+            }`}
+            title="Sincronizar con servidor"
+          >
+            <RefreshCw size={20} className={syncing ? 'animate-spin' : ''} />
+            {/* Badge de pendientes */}
+            {(pendientes ?? 0) > 0 && !syncing && (
+              <span className="absolute -top-1 -right-1 bg-[#E67E22] text-white text-[9px] font-black w-4 h-4 rounded-full flex items-center justify-center">
+                {pendientes}
+              </span>
+            )}
+          </button>
           <button
             onClick={() => setBuscadorOpen(true)}
             className="bg-white text-[#A69C8A] p-2.5 rounded-full shadow-sm hover:text-[#1D5E4D] active:scale-95 transition-all"
@@ -151,14 +193,32 @@ const InicioPage = ({ onPesaje }) => {
         </div>
       </header>
 
-      {/* Selector de Lotes tipo tabs */}
-      <div className="flex gap-2 mb-5 overflow-x-auto pb-1 scrollbar-hide">
+      {/* Banner sync message */}
+      {syncMsg && (
+        <div className={`mb-4 px-4 py-2.5 rounded-xl text-sm font-bold flex items-center gap-2 ${
+          syncMsg.includes('Error') || syncMsg.includes('Sin')
+            ? 'bg-red-50 text-red-600'
+            : 'bg-[#EAF4F0] text-[#1D5E4D]'
+        }`}>
+          {online ? <Wifi size={16} /> : <WifiOff size={16} />}
+          {syncMsg}
+        </div>
+      )}
+
+      {/* Banner offline */}
+      {!online && (
+        <div className="mb-4 px-4 py-2.5 rounded-xl text-sm font-bold flex items-center gap-2 bg-amber-50 text-amber-700">
+          <WifiOff size={16} />
+          Modo sin conexión — los cambios se guardan localmente
+        </div>
+      )}
+
+      {/* Tabs de lotes */}
+      <div className="flex gap-2 mb-5 overflow-x-auto pb-1">
         <button
           onClick={() => setFiltroLote(null)}
           className={`flex-shrink-0 py-2.5 px-5 rounded-full text-sm font-bold transition-all ${
-            filtroLote === null
-              ? 'bg-[#1D5E4D] text-white shadow-md'
-              : 'bg-white text-[#A69C8A] hover:bg-gray-50'
+            filtroLote === null ? 'bg-[#1D5E4D] text-white shadow-md' : 'bg-white text-[#A69C8A]'
           }`}
         >
           Todo el rodeo
@@ -168,9 +228,7 @@ const InicioPage = ({ onPesaje }) => {
             key={lote.id}
             onClick={() => setFiltroLote(lote.id)}
             className={`flex-shrink-0 py-2.5 px-5 rounded-full text-sm font-bold transition-all ${
-              filtroLote === lote.id
-                ? 'bg-[#1D5E4D] text-white shadow-md'
-                : 'bg-white text-[#A69C8A] hover:bg-gray-50'
+              filtroLote === lote.id ? 'bg-[#1D5E4D] text-white shadow-md' : 'bg-white text-[#A69C8A]'
             }`}
           >
             {lote.nombre}
@@ -185,18 +243,18 @@ const InicioPage = ({ onPesaje }) => {
         </p>
       )}
 
-      {/* Lista de animales */}
+      {/* Lista */}
       <div className="space-y-3">
         {!animales ? (
           <p className="text-center text-[#A69C8A] py-10">Cargando...</p>
         ) : animalesFiltrados.length === 0 ? (
           <div className="bg-white rounded-2xl p-10 text-center text-[#A69C8A]">
             <p className="text-5xl mb-3">🌿</p>
-            <p className="font-bold text-lg">
-              {filtroLote ? 'Este lote está vacío' : 'Sin animales aún'}
-            </p>
+            <p className="font-bold text-lg">{filtroLote ? 'Este lote está vacío' : 'Sin animales aún'}</p>
             <p className="text-sm mt-1">
-              {filtroLote ? 'Asigná animales a este lote.' : 'Tocá el + para registrar tu primer animal.'}
+              {filtroLote
+                ? 'Asigná animales a este lote.'
+                : 'Tocá el + para registrar, o sincronizá para traer del servidor.'}
             </p>
           </div>
         ) : animalesFiltrados.map(animal => (
@@ -224,15 +282,16 @@ const InicioPage = ({ onPesaje }) => {
             </div>
 
             <div className="flex justify-between items-center pt-3 border-t border-gray-100">
-              <div className="flex items-center gap-2">
-                <span className="text-xs font-semibold text-[#A69C8A]">
-                  {animal.especie || '—'}
-                  {animal.raza ? ` · ${animal.raza}` : ''}
-                </span>
-              </div>
-              {animal.sincronizado === 0 && (
+              <span className="text-xs font-semibold text-[#A69C8A]">
+                {animal.especie || '—'}{animal.raza ? ` · ${animal.raza}` : ''}
+              </span>
+              {animal.sincronizado === 0 ? (
                 <div className="flex items-center text-[#E67E22] text-[10px] font-bold uppercase px-2.5 py-1 bg-[#FDF1E3] rounded-full">
                   <CloudOff size={11} className="mr-1" /> Local
+                </div>
+              ) : (
+                <div className="flex items-center text-[#1D5E4D] text-[10px] font-bold uppercase px-2.5 py-1 bg-[#EAF4F0] rounded-full">
+                  <Wifi size={11} className="mr-1" /> Sync
                 </div>
               )}
             </div>
@@ -259,7 +318,7 @@ const InicioPage = ({ onPesaje }) => {
   );
 };
 
-// ── App Shell con router simple ────────────────────────────────
+// ── App Shell ──────────────────────────────────────────────────
 const AnimalesList = () => {
   const [tab, setTab] = useState('inicio');
   const [animalParaPesar, setAnimalParaPesar] = useState(null);
@@ -267,11 +326,9 @@ const AnimalesList = () => {
   return (
     <>
       {tab === 'inicio' && <InicioPage onPesaje={setAnimalParaPesar} />}
-      {tab === 'lotes' && <LotesPage />}
+      {tab === 'lotes'  && <LotesPage />}
       {tab === 'perfil' && <PerfilPage />}
-
       <NavBar tab={tab} setTab={setTab} />
-
       <AddWeighingModal
         isOpen={animalParaPesar !== null}
         onClose={() => setAnimalParaPesar(null)}

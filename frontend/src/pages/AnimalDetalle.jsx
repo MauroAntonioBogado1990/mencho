@@ -128,6 +128,7 @@ const EditarAnimalModal = ({ animal, onClose }) => {
   const [razaCustom, setRazaCu]       = useState('');
   const [showEspCu, setShowEspCu]     = useState(false);
   const [showRazaCu, setShowRazaCu]   = useState(false);
+  const [loteId, setLoteId]           = useState(animal.lote_id ? String(animal.lote_id) : '');
   const [guardado, setGuardado]       = useState(false);
   const lotes = useLiveQuery(() => db.lotes.toArray(), []);
 
@@ -147,12 +148,30 @@ const EditarAnimalModal = ({ animal, onClose }) => {
     e.preventDefault();
     const especieFinal = showEspCu ? especieCustom : especie;
     const razaFinal    = showRazaCu ? razaCustom : raza;
+    const nuevoLoteId  = loteId ? parseInt(loteId) : null;
+
+    // Si cambió el lote, registrar evento en historial
+    if (nuevoLoteId !== (animal.lote_id ?? null)) {
+      const loteAnterior = lotes?.find(l => l.id === (animal.lote_id ?? null));
+      const loteNuevo    = lotes?.find(l => l.id === nuevoLoteId);
+      const desde = loteAnterior ? loteAnterior.nombre : 'Sin lote';
+      const hacia = loteNuevo    ? loteNuevo.nombre    : 'Sin lote';
+      await db.eventos.add({
+        animal_id:    animal.id,
+        tipo:         'cambio_lote',
+        descripcion:  `Movido de "${desde}" a "${hacia}"`,
+        fecha:        new Date().toISOString(),
+        sincronizado: 0,
+      });
+    }
+
     await db.animales.update(animal.id, {
-      especie: especieFinal,
-      raza: razaFinal,
-      ubicacion: ubicacion.trim() || null,
+      especie:       especieFinal,
+      raza:          razaFinal,
+      ubicacion:     ubicacion.trim() || null,
       observaciones: observaciones.trim() || null,
-      sincronizado: 0,
+      lote_id:       nuevoLoteId,
+      sincronizado:  0,
     });
     setGuardado(true);
     setTimeout(() => { setGuardado(false); onClose(); }, 1200);
@@ -199,6 +218,23 @@ const EditarAnimalModal = ({ animal, onClose }) => {
                   <ChevronDown size={18} className="absolute right-4 top-1/2 -translate-y-1/2 text-[#A69C8A] pointer-events-none"/>
                 </div>
                 {showRazaCu && <input type="text" className="mt-2 w-full p-3 border-2 border-[#E67E22]/40 rounded-xl bg-[#FDF1E3] outline-none text-sm font-semibold" placeholder="Nueva raza..." value={razaCustom} onChange={e => setRazaCu(e.target.value)}/>}
+              </div>
+              {/* Lote */}
+              <div>
+                <label className="block text-xs font-bold text-[#A69C8A] uppercase tracking-wider mb-1.5">Lote Asignado</label>
+                <div className="relative">
+                  <select className="w-full p-4 border-2 border-gray-100 rounded-xl bg-gray-50 outline-none font-semibold appearance-none pr-10"
+                    value={loteId} onChange={e => setLoteId(e.target.value)}>
+                    <option value="">Sin lote asignado</option>
+                    {lotes?.map(l => <option key={l.id} value={l.id}>{l.nombre}</option>)}
+                  </select>
+                  <ChevronDown size={18} className="absolute right-4 top-1/2 -translate-y-1/2 text-[#A69C8A] pointer-events-none"/>
+                </div>
+                {loteId !== (animal.lote_id ? String(animal.lote_id) : '') && (
+                  <p className="text-[11px] text-[#E67E22] font-bold mt-1.5 flex items-center gap-1">
+                    ⚠ Se registrará un evento de cambio de lote al guardar
+                  </p>
+                )}
               </div>
               {/* Ubicación */}
               <div>

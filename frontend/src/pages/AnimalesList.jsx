@@ -4,11 +4,11 @@ import { db } from '../db/db';
 import { Plus, CloudOff, Search, X, Home, RefreshCw, Wifi, WifiOff } from 'lucide-react';
 import AddAnimalModal from '../components/AddAnimalModal';
 import AddWeighingModal from '../components/AddWeighingModal';
-import LotesPage from './LotesPage';
-import PerfilPage from './PerfilPage';
+import LotesPage from './Lotespage';
+import PerfilPage from './Perfilpage';
 import { sincronizarTodo } from '../api/syncService';
+import AnimalDetalle from './AnimalDetalle';
 
-// ── Íconos emoji ───────────────────────────────────────────────
 const IconoVaca      = () => <span style={{fontSize:24,lineHeight:1}}>🐄</span>;
 const IconoSombrero  = () => <span style={{fontSize:24,lineHeight:1}}>🤠</span>;
 
@@ -22,7 +22,6 @@ const especieEmoji = (e) => {
   return '🐄';
 };
 
-// ── NavBar ─────────────────────────────────────────────────────
 const NavBtn = ({ id, label, icon, tab, setTab }) => (
   <button
     onClick={() => setTab(id)}
@@ -36,13 +35,12 @@ const NavBtn = ({ id, label, icon, tab, setTab }) => (
 
 const NavBar = ({ tab, setTab }) => (
   <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-100 flex items-center justify-around px-4 pt-2 pb-4 z-40 shadow-[0_-4px_20px_rgba(0,0,0,0.06)]">
-    <NavBtn id="inicio" label="Inicio" icon={<Home size={22} />} tab={tab} setTab={setTab} />
-    <NavBtn id="lotes"  label="Lotes"  icon={<IconoVaca />}       tab={tab} setTab={setTab} />
-    <NavBtn id="perfil" label="Perfil" icon={<IconoSombrero />}   tab={tab} setTab={setTab} />
+    <NavBtn id="inicio" label="Inicio" icon={<Home size={22} />}  tab={tab} setTab={setTab} />
+    <NavBtn id="lotes"  label="Lotes"  icon={<IconoVaca />}        tab={tab} setTab={setTab} />
+    <NavBtn id="perfil" label="Perfil" icon={<IconoSombrero />}    tab={tab} setTab={setTab} />
   </nav>
 );
 
-// ── Buscador Modal ─────────────────────────────────────────────
 const BuscadorModal = ({ isOpen, onClose, animales, onSelectAnimal }) => {
   const [query, setQuery] = useState('');
   if (!isOpen) return null;
@@ -113,8 +111,7 @@ const BuscadorModal = ({ isOpen, onClose, animales, onSelectAnimal }) => {
   );
 };
 
-// ── Página Inicio ──────────────────────────────────────────────
-const InicioPage = ({ onPesaje }) => {
+const InicioPage = ({ onVerDetalle }) => {
   const [isModalOpen, setIsModalOpen]   = useState(false);
   const [buscadorOpen, setBuscadorOpen] = useState(false);
   const [filtroLote, setFiltroLote]     = useState(null);
@@ -122,11 +119,10 @@ const InicioPage = ({ onPesaje }) => {
   const [syncMsg, setSyncMsg]           = useState(null);
   const [online, setOnline]             = useState(navigator.onLine);
 
-  const animales = useLiveQuery(() => db.animales.toArray());
-  const lotes    = useLiveQuery(() => db.lotes.toArray());
+  const animales   = useLiveQuery(() => db.animales.toArray());
+  const lotes      = useLiveQuery(() => db.lotes.toArray());
   const pendientes = useLiveQuery(() => db.animales.where('sincronizado').equals(0).count());
 
-  // Detectar estado online/offline
   useEffect(() => {
     const goOn  = () => setOnline(true);
     const goOff = () => setOnline(false);
@@ -138,11 +134,10 @@ const InicioPage = ({ onPesaje }) => {
   const handleSync = useCallback(async () => {
     if (!online) { setSyncMsg('Sin conexión'); setTimeout(() => setSyncMsg(null), 2000); return; }
     setSyncing(true);
-    setSyncMsg(null);
     try {
       const { push, pullCount } = await sincronizarTodo();
       setSyncMsg(`↑${push.ok} subidos · ↓${pullCount} del servidor`);
-    } catch (err) {
+    } catch {
       setSyncMsg('Error al conectar con el servidor');
     } finally {
       setSyncing(false);
@@ -158,8 +153,6 @@ const InicioPage = ({ onPesaje }) => {
 
   return (
     <div className="min-h-screen bg-[#F4F1ED] p-4 pb-28 text-[#2F3E3B]">
-
-      {/* Header */}
       <header className="flex justify-between items-center mb-6 pt-2">
         <div>
           <h1 className="text-2xl font-black text-[#1D5E4D] italic tracking-tight">
@@ -168,16 +161,13 @@ const InicioPage = ({ onPesaje }) => {
           <p className="text-[11px] text-[#A69C8A] font-medium uppercase tracking-widest -mt-1">Gestión de Hacienda</p>
         </div>
         <div className="flex gap-2 items-center">
-          {/* Botón Sincronizar */}
           <button
             onClick={handleSync}
             className={`relative p-2.5 rounded-full shadow-sm transition-all active:scale-95 ${
               online ? 'bg-white text-[#1D5E4D] hover:bg-[#EAF4F0]' : 'bg-white text-[#A69C8A]'
             }`}
-            title="Sincronizar con servidor"
           >
             <RefreshCw size={20} className={syncing ? 'animate-spin' : ''} />
-            {/* Badge de pendientes */}
             {(pendientes ?? 0) > 0 && !syncing && (
               <span className="absolute -top-1 -right-1 bg-[#E67E22] text-white text-[9px] font-black w-4 h-4 rounded-full flex items-center justify-center">
                 {pendientes}
@@ -193,27 +183,21 @@ const InicioPage = ({ onPesaje }) => {
         </div>
       </header>
 
-      {/* Banner sync message */}
       {syncMsg && (
         <div className={`mb-4 px-4 py-2.5 rounded-xl text-sm font-bold flex items-center gap-2 ${
-          syncMsg.includes('Error') || syncMsg.includes('Sin')
-            ? 'bg-red-50 text-red-600'
-            : 'bg-[#EAF4F0] text-[#1D5E4D]'
+          syncMsg.includes('Error') || syncMsg.includes('Sin') ? 'bg-red-50 text-red-600' : 'bg-[#EAF4F0] text-[#1D5E4D]'
         }`}>
           {online ? <Wifi size={16} /> : <WifiOff size={16} />}
           {syncMsg}
         </div>
       )}
 
-      {/* Banner offline */}
       {!online && (
         <div className="mb-4 px-4 py-2.5 rounded-xl text-sm font-bold flex items-center gap-2 bg-amber-50 text-amber-700">
-          <WifiOff size={16} />
-          Modo sin conexión — los cambios se guardan localmente
+          <WifiOff size={16} /> Modo sin conexión — los cambios se guardan localmente
         </div>
       )}
 
-      {/* Tabs de lotes */}
       <div className="flex gap-2 mb-5 overflow-x-auto pb-1">
         <button
           onClick={() => setFiltroLote(null)}
@@ -236,14 +220,12 @@ const InicioPage = ({ onPesaje }) => {
         ))}
       </div>
 
-      {/* Conteo */}
       {animalesFiltrados.length > 0 && (
         <p className="text-xs text-[#A69C8A] font-bold uppercase tracking-wider mb-3 px-1">
           {animalesFiltrados.length} animal{animalesFiltrados.length !== 1 ? 'es' : ''}
         </p>
       )}
 
-      {/* Lista */}
       <div className="space-y-3">
         {!animales ? (
           <p className="text-center text-[#A69C8A] py-10">Cargando...</p>
@@ -252,15 +234,13 @@ const InicioPage = ({ onPesaje }) => {
             <p className="text-5xl mb-3">🌿</p>
             <p className="font-bold text-lg">{filtroLote ? 'Este lote está vacío' : 'Sin animales aún'}</p>
             <p className="text-sm mt-1">
-              {filtroLote
-                ? 'Asigná animales a este lote.'
-                : 'Tocá el + para registrar, o sincronizá para traer del servidor.'}
+              {filtroLote ? 'Asigná animales a este lote.' : 'Tocá el + para registrar, o sincronizá para traer del servidor.'}
             </p>
           </div>
         ) : animalesFiltrados.map(animal => (
           <div
             key={animal.id}
-            onClick={() => onPesaje(animal)}
+            onClick={() => onVerDetalle(animal)}
             className="bg-white p-5 rounded-2xl shadow-sm border-2 border-transparent hover:border-[#1D5E4D]/20 active:border-[#1D5E4D]/30 transition-all cursor-pointer active:scale-[0.98]"
           >
             <div className="flex justify-between items-start mb-3">
@@ -280,7 +260,6 @@ const InicioPage = ({ onPesaje }) => {
                 </p>
               </div>
             </div>
-
             <div className="flex justify-between items-center pt-3 border-t border-gray-100">
               <span className="text-xs font-semibold text-[#A69C8A]">
                 {animal.especie || '—'}{animal.raza ? ` · ${animal.raza}` : ''}
@@ -299,7 +278,6 @@ const InicioPage = ({ onPesaje }) => {
         ))}
       </div>
 
-      {/* FAB */}
       <button
         onClick={() => setIsModalOpen(true)}
         className="fixed bottom-20 right-5 bg-[#1D5E4D] hover:bg-[#154639] text-white p-5 rounded-full shadow-2xl active:scale-95 transition-transform z-30"
@@ -312,26 +290,45 @@ const InicioPage = ({ onPesaje }) => {
         isOpen={buscadorOpen}
         onClose={() => setBuscadorOpen(false)}
         animales={animales}
-        onSelectAnimal={onPesaje}
+        onSelectAnimal={onVerDetalle}
       />
     </div>
   );
 };
 
-// ── App Shell ──────────────────────────────────────────────────
 const AnimalesList = () => {
-  const [tab, setTab] = useState('inicio');
+  const [tab, setTab]                         = useState('inicio');
+  const [animalDetalle, setAnimalDetalle]     = useState(null);
   const [animalParaPesar, setAnimalParaPesar] = useState(null);
+
+  // Al cerrar el pesaje, refrescar el animal desde Dexie para mostrar peso actualizado
+  const handleCerrarPesaje = useCallback(async () => {
+    setAnimalParaPesar(null);
+    if (animalDetalle) {
+      const actualizado = await db.animales.get(animalDetalle.id);
+      if (actualizado) setAnimalDetalle(actualizado);
+    }
+  }, [animalDetalle]);
 
   return (
     <>
-      {tab === 'inicio' && <InicioPage onPesaje={setAnimalParaPesar} />}
+      {tab === 'inicio' && <InicioPage onVerDetalle={setAnimalDetalle} />}
       {tab === 'lotes'  && <LotesPage />}
       {tab === 'perfil' && <PerfilPage />}
+
+      {animalDetalle && (
+        <AnimalDetalle
+          animal={animalDetalle}
+          onClose={() => setAnimalDetalle(null)}
+          onNuevoPesaje={() => setAnimalParaPesar(animalDetalle)}
+        />
+      )}
+
       <NavBar tab={tab} setTab={setTab} />
+
       <AddWeighingModal
         isOpen={animalParaPesar !== null}
-        onClose={() => setAnimalParaPesar(null)}
+        onClose={handleCerrarPesaje}
         animal={animalParaPesar}
       />
     </>

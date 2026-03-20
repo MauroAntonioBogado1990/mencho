@@ -40,9 +40,13 @@ const AnimalDetalle = ({ animal: animalProp, onClose, onNuevoPesaje }) => {
   if (!animal) return null;
 
   // Calcular trazabilidad
-  const pesajesOrdenados = [...(pesajes || [])].reverse(); // más reciente primero
-  const primerPeso = pesajes?.[0]?.peso ?? animal.peso_actual;
-  const gananciaTotal = animal.peso_actual - primerPeso;
+  // Ordenar: más reciente primero (para mostrar en pantalla)
+  const pesajesOrdenados = [...(pesajes || [])].reverse();
+
+  // Ganancia: diferencia entre peso actual y el peso del PRIMER pesaje registrado
+  // Si no hay pesajes, ganancia = 0 (no hay con qué comparar aún)
+  const pesoIngreso = pesajes && pesajes.length > 0 ? pesajes[0].peso : null;
+  const gananciaTotal = pesoIngreso !== null ? animal.peso_actual - pesoIngreso : 0;
   const diasDesdeIngreso = animal.fecha_ingreso
     ? Math.floor((Date.now() - new Date(animal.fecha_ingreso)) / 86400000)
     : null;

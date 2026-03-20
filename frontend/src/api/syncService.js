@@ -60,11 +60,12 @@ export async function pullAnimalesServidor() {
         sincronizado: 1, // Ya está en el servidor
       });
     } else if (existe.sincronizado === 1) {
-      // Ya sincronizado: actualizar con datos del servidor
+      // Ya sincronizado: actualizar metadata pero NO el peso_actual
+      // El peso lo maneja el historial de pesajes local, no el servidor
       await db.animales.update(existe.id, {
         especie: animalServer.especie,
         raza: animalServer.raza || '',
-        peso_actual: animalServer.peso_actual,
+        // peso_actual NO se pisa: el valor local es siempre el más reciente
       });
     }
     // Si sincronizado=0 (local pending), no pisamos con datos del servidor

@@ -1,6 +1,6 @@
 from sqlalchemy import Column, Integer, String, Float, DateTime
 from datetime import datetime
-from app.core.database import Base # Luego crearemos este archivo de conexión
+from backend.core.database import Base # Luego crearemos este archivo de conexión
 from sqlalchemy.orm import relationship
 class Animal(Base):
     __tablename__ = "animals"

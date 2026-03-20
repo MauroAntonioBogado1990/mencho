@@ -2,10 +2,10 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from typing import List
 
-from app.api.dependencies import get_db
-from app.schemas.animal import AnimalCreate, AnimalOut, AnimalUpdate
-from app.schemas.pesaje import PesajeCreate, PesajeOut
-from app.services import animal_service
+from backend.api.dependencies import get_db
+from backend.schemas.animal import AnimalCreate, AnimalOut, AnimalUpdate
+from backend.schemas.pesaje import PesajeCreate, PesajeOut
+from backend.services import animal_service
 
 router = APIRouter(prefix="/animales", tags=["Animales"])
 

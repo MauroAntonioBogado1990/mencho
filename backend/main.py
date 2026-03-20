@@ -1,14 +1,14 @@
 from fastapi import FastAPI
-from app.core.database import engine
-from app.models import animal
-from app.api.endpoints import router as animal_router # Importamos el router
+from backend.core.database import engine
+from backend.models import animal
+from backend.api.endpoints import router as animal_router # Importamos el router
 # Agrega esta línea con los otros imports de modelos
-from app.models import animal, pesaje
+from backend.models import animal, pesaje
 
 animal.Base.metadata.create_all(bind=engine)
 from fastapi import Request
 from fastapi.responses import JSONResponse
-from app.core.exceptions import MenchoException
+from backend.core.exceptions import MenchoException
 
 app = FastAPI(
     title="Mencho API",

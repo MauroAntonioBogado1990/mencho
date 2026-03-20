@@ -1,9 +1,9 @@
 from sqlalchemy.orm import Session
-from app.models.animal import Animal
-from app.models.pesaje import Pesaje
-from app.schemas.animal import AnimalCreate, AnimalUpdate
-from app.schemas.pesaje import PesajeCreate
-from app.core.exceptions import CaravanaDuplicadaException
+from backend.models.animal import Animal
+from backend.models.pesaje import Pesaje
+from backend.schemas.animal import AnimalCreate, AnimalUpdate
+from backend.schemas.pesaje import PesajeCreate
+from backend.core.exceptions import CaravanaDuplicadaException
 
 def get_animal_by_caravana(db: Session, caravana: str):
     return db.query(Animal).filter(Animal.caravana == caravana).first()

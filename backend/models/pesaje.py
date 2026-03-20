@@ -1,7 +1,7 @@
 from sqlalchemy import Column, Integer, Float, DateTime, ForeignKey
 from sqlalchemy.orm import relationship
 from datetime import datetime
-from app.core.database import Base
+from backend.core.database import Base
 
 class Pesaje(Base):
     __tablename__ = "pesajes"

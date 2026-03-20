@@ -6,6 +6,9 @@ from app.api.endpoints import router as animal_router # Importamos el router
 from app.models import animal, pesaje
 
 animal.Base.metadata.create_all(bind=engine)
+from fastapi import Request
+from fastapi.responses import JSONResponse
+from app.core.exceptions import MenchoException
 
 app = FastAPI(
     title="Mencho API",
@@ -19,3 +22,14 @@ app.include_router(animal_router)
 @app.get("/")
 async def read_root():
     return {"message": "Mencho API en línea"}
+
+@app.exception_handler(MenchoException)
+async def mencho_exception_handler(request: Request, exc: MenchoException):
+    return JSONResponse(
+        status_code=exc.code,
+        content={
+            "status": "error",
+            "message": exc.message,
+            "path": request.url.path
+        },
+    )

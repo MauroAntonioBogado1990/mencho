@@ -16,10 +16,3 @@ SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 # Base: De aquí heredarán todos nuestros modelos (como el de Animal)
 Base = declarative_base()
 
-# Dependencia para obtener la DB en nuestras rutas
-def get_db():
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()  

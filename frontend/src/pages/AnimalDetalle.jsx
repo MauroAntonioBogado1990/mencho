@@ -1,8 +1,13 @@
-import React from 'react';
-import { db } from '../db/db';
+import React, { useState } from 'react';
+import { db, TIPOS_EVENTO, ESPECIES_RAZAS } from '../db/db';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { ChevronRight, TrendingUp, TrendingDown, Minus, MapPin, Calendar, FileText, Scale } from 'lucide-react';
+import {
+  ChevronRight, TrendingUp, TrendingDown, Minus, MapPin,
+  Calendar, FileText, Scale, Pencil, Trash2, X, Save,
+  CheckCircle, Syringe, StickyNote, MoveRight, ChevronDown
+} from 'lucide-react';
 
+// ── Helpers ────────────────────────────────────────────────────
 const especieEmoji = (e) => {
   if (!e) return '🐄';
   const l = e.toLowerCase();
@@ -12,81 +17,304 @@ const especieEmoji = (e) => {
   if (l.includes('cerdo'))  return '🐷';
   return '🐄';
 };
+const fmt  = (iso) => !iso ? '—' : new Date(iso).toLocaleDateString('es-AR', { day:'2-digit', month:'short', year:'numeric' });
+const fmtH = (iso) => !iso ? '' : new Date(iso).toLocaleTimeString('es-AR', { hour:'2-digit', minute:'2-digit' });
 
-const formatFecha = (iso) => {
-  if (!iso) return '—';
-  const d = new Date(iso);
-  return d.toLocaleDateString('es-AR', { day: '2-digit', month: 'short', year: 'numeric' });
+// ── Modal Registrar Evento ─────────────────────────────────────
+const EventoModal = ({ animal, onClose }) => {
+  const [tipo, setTipo]           = useState('vacuna');
+  const [descripcion, setDesc]    = useState('');
+  const [loteDestino, setLoteDest]= useState('');
+  const [guardado, setGuardado]   = useState(false);
+  const lotes = useLiveQuery(() => db.lotes.toArray(), []);
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    let desc = descripcion.trim();
+    if (tipo === 'cambio_lote') {
+      const lote = lotes?.find(l => l.id === parseInt(loteDestino));
+      desc = lote ? `Movido al lote: ${lote.nombre}` : 'Cambio de lote';
+      // Actualizar lote del animal
+      await db.animales.update(animal.id, { lote_id: loteDestino ? parseInt(loteDestino) : null, sincronizado: 0 });
+    }
+    await db.eventos.add({
+      animal_id:    animal.id,
+      tipo,
+      descripcion:  desc,
+      fecha:        new Date().toISOString(),
+      sincronizado: 0,
+    });
+    setGuardado(true);
+    setTimeout(() => { setGuardado(false); onClose(); }, 1200);
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/60 flex items-end sm:items-center justify-center p-0 sm:p-4 z-[60]">
+      <div className="bg-white rounded-t-3xl sm:rounded-3xl w-full max-w-md shadow-2xl overflow-hidden">
+        <div className="flex justify-between items-center px-6 pt-6 pb-4 border-b border-gray-100">
+          <h2 className="text-lg font-black text-[#1D5E4D] italic">Nuevo Evento</h2>
+          <button onClick={onClose} className="p-2 bg-gray-100 rounded-full text-[#A69C8A]"><X size={18}/></button>
+        </div>
+        <div className="px-6 py-5">
+          {guardado ? (
+            <div className="flex flex-col items-center py-10 text-[#1D5E4D]">
+              <CheckCircle size={60}/><p className="mt-3 font-black text-lg">Evento registrado</p>
+            </div>
+          ) : (
+            <form onSubmit={handleSubmit} className="space-y-4">
+              {/* Tipo */}
+              <div>
+                <label className="block text-xs font-bold text-[#A69C8A] uppercase tracking-wider mb-1.5">Tipo de Evento</label>
+                <div className="grid grid-cols-2 gap-2">
+                  {Object.entries(TIPOS_EVENTO).map(([key, val]) => (
+                    <button key={key} type="button"
+                      onClick={() => setTipo(key)}
+                      className={`p-3 rounded-xl border-2 text-sm font-bold flex items-center gap-2 transition-all ${
+                        tipo === key ? 'border-[#1D5E4D] bg-[#EAF4F0] text-[#1D5E4D]' : 'border-gray-100 bg-gray-50 text-[#A69C8A]'
+                      }`}>
+                      <span>{val.emoji}</span>{val.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Lote destino (solo si es cambio_lote) */}
+              {tipo === 'cambio_lote' && (
+                <div>
+                  <label className="block text-xs font-bold text-[#A69C8A] uppercase tracking-wider mb-1.5">Lote Destino</label>
+                  <div className="relative">
+                    <select className="w-full p-4 border-2 border-gray-100 rounded-xl bg-gray-50 outline-none font-semibold appearance-none pr-10"
+                      value={loteDestino} onChange={e => setLoteDest(e.target.value)} required>
+                      <option value="">Sin lote</option>
+                      {lotes?.map(l => <option key={l.id} value={l.id}>{l.nombre}</option>)}
+                    </select>
+                    <ChevronDown size={18} className="absolute right-4 top-1/2 -translate-y-1/2 text-[#A69C8A] pointer-events-none"/>
+                  </div>
+                </div>
+              )}
+
+              {/* Descripción */}
+              {tipo !== 'cambio_lote' && (
+                <div>
+                  <label className="block text-xs font-bold text-[#A69C8A] uppercase tracking-wider mb-1.5">
+                    {tipo === 'vacuna' ? 'Nombre de la vacuna / dosis' : 'Descripción'}
+                  </label>
+                  <input type="text" required
+                    className="w-full p-4 border-2 border-gray-100 rounded-xl bg-gray-50 focus:border-[#1D5E4D] outline-none font-semibold"
+                    placeholder={tipo === 'vacuna' ? 'Ej: Aftosa 2ml, Brucelosis...' : 'Describí el evento...'}
+                    value={descripcion} onChange={e => setDesc(e.target.value)}/>
+                </div>
+              )}
+
+              <button type="submit"
+                className="w-full bg-[#1D5E4D] text-white font-black py-4 rounded-2xl flex items-center justify-center gap-2 active:scale-95 transition-all shadow-lg">
+                <Save size={18}/> Guardar Evento
+              </button>
+            </form>
+          )}
+        </div>
+      </div>
+    </div>
+  );
 };
 
-const formatHora = (iso) => {
-  if (!iso) return '';
-  const d = new Date(iso);
-  return d.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' });
+// ── Modal Editar Animal ────────────────────────────────────────
+const EditarAnimalModal = ({ animal, onClose }) => {
+  const [especie, setEspecie]         = useState(animal.especie || 'Vaca');
+  const [raza, setRaza]               = useState(animal.raza || '');
+  const [ubicacion, setUbicacion]     = useState(animal.ubicacion || '');
+  const [observaciones, setObs]       = useState(animal.observaciones || '');
+  const [especieCustom, setEspCu]     = useState('');
+  const [razaCustom, setRazaCu]       = useState('');
+  const [showEspCu, setShowEspCu]     = useState(false);
+  const [showRazaCu, setShowRazaCu]   = useState(false);
+  const [guardado, setGuardado]       = useState(false);
+  const lotes = useLiveQuery(() => db.lotes.toArray(), []);
+
+  const especiesDisponibles = [...Object.keys(ESPECIES_RAZAS), 'Otra especie...'];
+  const razasDisponibles = ESPECIES_RAZAS[especie] ? [...ESPECIES_RAZAS[especie], 'Otra raza...'] : ['Otra raza...'];
+
+  const handleEspecie = (v) => {
+    if (v === 'Otra especie...') { setShowEspCu(true); setEspecie(''); }
+    else { setShowEspCu(false); setEspecie(v); setRaza(''); setShowRazaCu(false); }
+  };
+  const handleRaza = (v) => {
+    if (v === 'Otra raza...') { setShowRazaCu(true); setRaza(''); }
+    else { setShowRazaCu(false); setRaza(v); }
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    const especieFinal = showEspCu ? especieCustom : especie;
+    const razaFinal    = showRazaCu ? razaCustom : raza;
+    await db.animales.update(animal.id, {
+      especie: especieFinal,
+      raza: razaFinal,
+      ubicacion: ubicacion.trim() || null,
+      observaciones: observaciones.trim() || null,
+      sincronizado: 0,
+    });
+    setGuardado(true);
+    setTimeout(() => { setGuardado(false); onClose(); }, 1200);
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/60 flex items-end sm:items-center justify-center p-0 sm:p-4 z-[60]">
+      <div className="bg-white rounded-t-3xl sm:rounded-3xl w-full max-w-md shadow-2xl overflow-hidden">
+        <div className="flex justify-between items-center px-6 pt-6 pb-4 border-b border-gray-100">
+          <div>
+            <h2 className="text-lg font-black text-[#1D5E4D] italic">Editar Animal</h2>
+            <p className="text-[11px] text-[#A69C8A] font-mono">{animal.caravana}</p>
+          </div>
+          <button onClick={onClose} className="p-2 bg-gray-100 rounded-full text-[#A69C8A]"><X size={18}/></button>
+        </div>
+        <div className="px-6 py-5 max-h-[80vh] overflow-y-auto">
+          {guardado ? (
+            <div className="flex flex-col items-center py-10 text-[#1D5E4D]">
+              <CheckCircle size={60}/><p className="mt-3 font-black text-lg">Cambios guardados</p>
+            </div>
+          ) : (
+            <form onSubmit={handleSubmit} className="space-y-4">
+              {/* Especie */}
+              <div>
+                <label className="block text-xs font-bold text-[#A69C8A] uppercase tracking-wider mb-1.5">Especie</label>
+                <div className="relative">
+                  <select className="w-full p-4 border-2 border-gray-100 rounded-xl bg-gray-50 outline-none font-semibold appearance-none pr-10"
+                    value={showEspCu ? 'Otra especie...' : especie} onChange={e => handleEspecie(e.target.value)}>
+                    {especiesDisponibles.map(s => <option key={s}>{s}</option>)}
+                  </select>
+                  <ChevronDown size={18} className="absolute right-4 top-1/2 -translate-y-1/2 text-[#A69C8A] pointer-events-none"/>
+                </div>
+                {showEspCu && <input type="text" required className="mt-2 w-full p-3 border-2 border-[#E67E22]/40 rounded-xl bg-[#FDF1E3] outline-none text-sm font-semibold" placeholder="Nueva especie..." value={especieCustom} onChange={e => setEspCu(e.target.value)}/>}
+              </div>
+              {/* Raza */}
+              <div>
+                <label className="block text-xs font-bold text-[#A69C8A] uppercase tracking-wider mb-1.5">Raza</label>
+                <div className="relative">
+                  <select className="w-full p-4 border-2 border-gray-100 rounded-xl bg-gray-50 outline-none font-semibold appearance-none pr-10"
+                    value={showRazaCu ? 'Otra raza...' : raza} onChange={e => handleRaza(e.target.value)}>
+                    <option value="">Sin raza</option>
+                    {razasDisponibles.map(r => <option key={r}>{r}</option>)}
+                  </select>
+                  <ChevronDown size={18} className="absolute right-4 top-1/2 -translate-y-1/2 text-[#A69C8A] pointer-events-none"/>
+                </div>
+                {showRazaCu && <input type="text" className="mt-2 w-full p-3 border-2 border-[#E67E22]/40 rounded-xl bg-[#FDF1E3] outline-none text-sm font-semibold" placeholder="Nueva raza..." value={razaCustom} onChange={e => setRazaCu(e.target.value)}/>}
+              </div>
+              {/* Ubicación */}
+              <div>
+                <label className="block text-xs font-bold text-[#A69C8A] uppercase tracking-wider mb-1.5">Ubicación / Potrero</label>
+                <input type="text" className="w-full p-4 border-2 border-gray-100 rounded-xl bg-gray-50 focus:border-[#1D5E4D] outline-none font-semibold"
+                  placeholder="Potrero Norte, Zona del río..." value={ubicacion} onChange={e => setUbicacion(e.target.value)}/>
+              </div>
+              {/* Observaciones */}
+              <div>
+                <label className="block text-xs font-bold text-[#A69C8A] uppercase tracking-wider mb-1.5">Observaciones</label>
+                <textarea rows={3} className="w-full p-4 border-2 border-gray-100 rounded-xl bg-gray-50 focus:border-[#1D5E4D] outline-none resize-none text-sm font-medium"
+                  placeholder="Notas, estado, tratamientos..." value={observaciones} onChange={e => setObs(e.target.value)}/>
+              </div>
+              <button type="submit" className="w-full bg-[#1D5E4D] text-white font-black py-4 rounded-2xl flex items-center justify-center gap-2 active:scale-95 transition-all shadow-lg">
+                <Save size={18}/> Guardar Cambios
+              </button>
+            </form>
+          )}
+        </div>
+      </div>
+    </div>
+  );
 };
 
-const AnimalDetalle = ({ animal: animalProp, onClose, onNuevoPesaje }) => {
-  // Usar useLiveQuery para que el componente se actualice automáticamente al cambiar Dexie
+// ── Confirmar Eliminar ─────────────────────────────────────────
+const ConfirmarEliminar = ({ animal, onConfirm, onCancel }) => (
+  <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-[60]">
+    <div className="bg-white rounded-3xl w-full max-w-sm p-6 shadow-2xl text-center">
+      <p className="text-4xl mb-3">⚠️</p>
+      <h3 className="text-lg font-black text-gray-900">¿Eliminar {animal.caravana}?</h3>
+      <p className="text-sm text-[#A69C8A] mt-2 mb-6">Se borrarán todos sus pesajes y eventos. Esta acción no se puede deshacer.</p>
+      <div className="flex gap-3">
+        <button onClick={onCancel} className="flex-1 py-3 rounded-2xl bg-gray-100 font-bold text-gray-600 active:scale-95 transition-all">Cancelar</button>
+        <button onClick={onConfirm} className="flex-1 py-3 rounded-2xl bg-red-500 text-white font-black active:scale-95 transition-all">Eliminar</button>
+      </div>
+    </div>
+  </div>
+);
+
+// ── Componente principal ───────────────────────────────────────
+const AnimalDetalle = ({ animal: animalProp, onClose, onNuevoPesaje, onEliminado }) => {
+  const [tab, setTab]               = useState('pesajes'); // 'pesajes' | 'eventos'
+  const [showEditar, setShowEditar] = useState(false);
+  const [showEvento, setShowEvento] = useState(false);
+  const [showConfDel, setShowConfDel] = useState(false);
+
   const animal = useLiveQuery(
     () => animalProp ? db.animales.get(animalProp.id) : null,
     [animalProp?.id]
-  ) ?? animalProp; // fallback al prop mientras carga
+  ) ?? animalProp;
 
   const pesajes = useLiveQuery(
     () => animalProp ? db.pesajes.where('animal_id').equals(animalProp.id).sortBy('fecha') : [],
     [animalProp?.id]
   );
 
+  const eventos = useLiveQuery(
+    () => animalProp ? db.eventos.where('animal_id').equals(animalProp.id).sortBy('fecha') : [],
+    [animalProp?.id]
+  );
+
+  const lote = useLiveQuery(
+    () => animal?.lote_id ? db.lotes.get(animal.lote_id) : null,
+    [animal?.lote_id]
+  );
+
   if (!animal) return null;
 
-  // Calcular trazabilidad
-  // Ordenar: más reciente primero (para mostrar en pantalla)
   const pesajesOrdenados = [...(pesajes || [])].reverse();
-
-  // Ganancia: diferencia entre peso actual y el peso del PRIMER pesaje registrado
-  // Si no hay pesajes, ganancia = 0 (no hay con qué comparar aún)
-  const pesoIngreso = pesajes && pesajes.length > 0 ? pesajes[0].peso : null;
+  const eventosOrdenados = [...(eventos || [])].reverse();
+  const pesoIngreso  = pesajes?.length > 0 ? pesajes[0].peso : null;
   const gananciaTotal = pesoIngreso !== null ? animal.peso_actual - pesoIngreso : 0;
-  const diasDesdeIngreso = animal.fecha_ingreso
-    ? Math.floor((Date.now() - new Date(animal.fecha_ingreso)) / 86400000)
-    : null;
-  const gdpg = diasDesdeIngreso && diasDesdeIngreso > 0
-    ? (gananciaTotal / diasDesdeIngreso).toFixed(2)
-    : null;
+  const dias = animal.fecha_ingreso ? Math.floor((Date.now() - new Date(animal.fecha_ingreso)) / 86400000) : null;
+  const gdpg = dias > 0 && gananciaTotal !== 0 ? (gananciaTotal / dias).toFixed(2) : null;
+
+  const handleEliminar = async () => {
+    await db.pesajes.where('animal_id').equals(animal.id).delete();
+    await db.eventos.where('animal_id').equals(animal.id).delete();
+    await db.animales.delete(animal.id);
+    onEliminado?.();
+    onClose();
+  };
 
   return (
     <div className="fixed inset-0 bg-[#F4F1ED] z-50 overflow-y-auto">
 
       {/* Header */}
       <div className="bg-white px-5 pt-10 pb-5 shadow-sm">
-        <div className="flex items-center gap-3 mb-4">
+        <div className="flex items-center gap-3 mb-3">
           <button onClick={onClose} className="p-2.5 bg-gray-100 rounded-full text-[#1D5E4D]">
-            <ChevronRight size={20} className="rotate-180" />
+            <ChevronRight size={20} className="rotate-180"/>
           </button>
           <div className="flex-1">
             <p className="text-[10px] font-bold text-[#A69C8A] uppercase tracking-wider">Ficha del Animal</p>
             <h1 className="text-2xl font-black font-mono text-[#1D5E4D]">{animal.caravana}</h1>
           </div>
-          <span className="text-5xl">{especieEmoji(animal.especie)}</span>
+          {/* Acciones */}
+          <button onClick={() => setShowEditar(true)} className="p-2.5 bg-[#EAF4F0] rounded-full text-[#1D5E4D]">
+            <Pencil size={18}/>
+          </button>
+          <button onClick={() => setShowConfDel(true)} className="p-2.5 bg-red-50 rounded-full text-red-400">
+            <Trash2 size={18}/>
+          </button>
+          <span className="text-4xl">{especieEmoji(animal.especie)}</span>
         </div>
-
-        {/* Tags de especie/raza */}
         <div className="flex flex-wrap gap-2">
-          {animal.especie && (
-            <span className="px-3 py-1 bg-[#EAF4F0] text-[#1D5E4D] text-xs font-bold rounded-full">{animal.especie}</span>
-          )}
-          {animal.raza && (
-            <span className="px-3 py-1 bg-[#EAF4F0] text-[#1D5E4D] text-xs font-bold rounded-full">{animal.raza}</span>
-          )}
-          {animal.sincronizado === 0 && (
-            <span className="px-3 py-1 bg-[#FDF1E3] text-[#E67E22] text-xs font-bold rounded-full">⚠ Sin sync</span>
-          )}
+          {animal.especie && <span className="px-3 py-1 bg-[#EAF4F0] text-[#1D5E4D] text-xs font-bold rounded-full">{animal.especie}</span>}
+          {animal.raza    && <span className="px-3 py-1 bg-[#EAF4F0] text-[#1D5E4D] text-xs font-bold rounded-full">{animal.raza}</span>}
+          {lote           && <span className="px-3 py-1 bg-amber-50 text-amber-700 text-xs font-bold rounded-full">🏡 {lote.nombre}</span>}
+          {animal.sincronizado === 0 && <span className="px-3 py-1 bg-[#FDF1E3] text-[#E67E22] text-xs font-bold rounded-full">⚠ Sin sync</span>}
         </div>
       </div>
 
-      <div className="p-4 space-y-4 pb-32">
+      <div className="p-4 space-y-4 pb-36">
 
-        {/* Peso actual destacado */}
+        {/* Peso */}
         <div className="bg-[#1D5E4D] rounded-2xl p-5 text-white flex justify-between items-center">
           <div>
             <p className="text-[11px] font-bold uppercase tracking-widest opacity-70">Peso Actual</p>
@@ -99,104 +327,128 @@ const AnimalDetalle = ({ animal: animalProp, onClose, onNuevoPesaje }) => {
             <p className={`text-2xl font-black mt-1 ${gananciaTotal >= 0 ? 'text-green-300' : 'text-red-300'}`}>
               {gananciaTotal >= 0 ? '+' : ''}{gananciaTotal.toFixed(1)} kg
             </p>
-            {gdpg && (
-              <p className="text-[10px] opacity-60 mt-0.5">{gdpg} kg/día promedio</p>
+            {gdpg && <p className="text-[10px] opacity-60 mt-0.5">{gdpg} kg/día promedio</p>}
+          </div>
+        </div>
+
+        {/* Info */}
+        {(animal.ubicacion || animal.fecha_ingreso || animal.observaciones) && (
+          <div className="bg-white rounded-2xl p-5 space-y-3">
+            <h3 className="text-xs font-black text-[#A69C8A] uppercase tracking-wider">Datos del Animal</h3>
+            {animal.ubicacion    && <InfoRow icon={<MapPin size={15}/>}    label="Ubicación"       value={animal.ubicacion}/>}
+            {animal.fecha_ingreso && <InfoRow icon={<Calendar size={15}/>}  label="Fecha de ingreso" value={`${fmt(animal.fecha_ingreso)}${dias !== null ? ` · hace ${dias} días` : ''}`}/>}
+            {animal.observaciones && <InfoRow icon={<FileText size={15}/>}  label="Observaciones"   value={animal.observaciones}/>}
+          </div>
+        )}
+
+        {/* Tabs */}
+        <div className="flex bg-white rounded-2xl p-1 shadow-sm">
+          {[
+            { id: 'pesajes', label: `Pesajes (${pesajesOrdenados.length})`, icon: <Scale size={15}/> },
+            { id: 'eventos', label: `Eventos (${eventosOrdenados.length})`,  icon: <StickyNote size={15}/> },
+          ].map(t => (
+            <button key={t.id} onClick={() => setTab(t.id)}
+              className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-sm font-bold transition-all ${
+                tab === t.id ? 'bg-[#1D5E4D] text-white shadow' : 'text-[#A69C8A]'
+              }`}>
+              {t.icon}{t.label}
+            </button>
+          ))}
+        </div>
+
+        {/* Tab: Pesajes */}
+        {tab === 'pesajes' && (
+          <div className="bg-white rounded-2xl p-5">
+            {pesajesOrdenados.length === 0 ? (
+              <div className="text-center py-6 text-[#A69C8A]">
+                <p className="text-3xl mb-2">⚖️</p>
+                <p className="text-sm font-semibold">Sin pesajes registrados</p>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {pesajesOrdenados.map((p, idx) => {
+                  const anterior = pesajesOrdenados[idx + 1];
+                  const diff = anterior ? p.peso - anterior.peso : null;
+                  const esPrimero = idx === pesajesOrdenados.length - 1;
+                  return (
+                    <div key={p.id} className={`flex items-center gap-3 p-3 rounded-xl border ${esPrimero ? 'bg-gray-50 border-gray-200' : 'bg-white border-gray-100'}`}>
+                      <div className={`p-2 rounded-xl flex-shrink-0 ${
+                        diff === null ? 'bg-gray-100 text-gray-400'
+                        : diff > 0 ? 'bg-green-50 text-green-600'
+                        : diff < 0 ? 'bg-red-50 text-red-500'
+                        : 'bg-gray-100 text-gray-400'
+                      }`}>
+                        {diff === null ? <Minus size={15}/> : diff > 0 ? <TrendingUp size={15}/> : <TrendingDown size={15}/>}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs font-bold text-[#2F3E3B]">{fmt(p.fecha)}</p>
+                        <p className="text-[10px] text-[#A69C8A]">{fmtH(p.fecha)}</p>
+                      </div>
+                      <div className="text-right flex-shrink-0">
+                        <p className="text-lg font-black text-gray-900">{p.peso} <span className="text-xs font-normal text-gray-400">kg</span></p>
+                        {diff !== null && (
+                          <p className={`text-[11px] font-bold ${diff > 0 ? 'text-green-600' : diff < 0 ? 'text-red-500' : 'text-gray-400'}`}>
+                            {diff > 0 ? '+' : ''}{diff.toFixed(1)} kg
+                          </p>
+                        )}
+                        {esPrimero && <p className="text-[10px] text-[#A69C8A]">Ingreso</p>}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
             )}
           </div>
-        </div>
+        )}
 
-        {/* Info del animal */}
-        <div className="bg-white rounded-2xl p-5 space-y-3">
-          <h3 className="text-xs font-black text-[#A69C8A] uppercase tracking-wider">Datos del Animal</h3>
-
-          {animal.ubicacion && (
-            <InfoRow icon={<MapPin size={16} />} label="Ubicación" value={animal.ubicacion} />
-          )}
-          {animal.fecha_ingreso && (
-            <InfoRow icon={<Calendar size={16} />} label="Fecha de ingreso"
-              value={`${formatFecha(animal.fecha_ingreso)}${diasDesdeIngreso !== null ? ` · hace ${diasDesdeIngreso} días` : ''}`} />
-          )}
-          {animal.observaciones && (
-            <InfoRow icon={<FileText size={16} />} label="Observaciones" value={animal.observaciones} />
-          )}
-          {!animal.ubicacion && !animal.fecha_ingreso && !animal.observaciones && (
-            <p className="text-sm text-[#A69C8A]">Sin datos adicionales registrados.</p>
-          )}
-        </div>
-
-        {/* Historial de pesajes */}
-        <div className="bg-white rounded-2xl p-5">
-          <div className="flex justify-between items-center mb-4">
-            <h3 className="text-xs font-black text-[#A69C8A] uppercase tracking-wider">
-              Historial de Pesajes ({pesajesOrdenados.length})
-            </h3>
-            <Scale size={16} className="text-[#A69C8A]" />
+        {/* Tab: Eventos */}
+        {tab === 'eventos' && (
+          <div className="bg-white rounded-2xl p-5">
+            {eventosOrdenados.length === 0 ? (
+              <div className="text-center py-6 text-[#A69C8A]">
+                <p className="text-3xl mb-2">📋</p>
+                <p className="text-sm font-semibold">Sin eventos registrados</p>
+                <p className="text-xs mt-1">Registrá vacunas, cambios de lote u observaciones.</p>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {eventosOrdenados.map(ev => {
+                  const tipo = TIPOS_EVENTO[ev.tipo] || { emoji: '📝', label: ev.tipo, color: '#A69C8A' };
+                  return (
+                    <div key={ev.id} className="flex items-start gap-3 p-3 rounded-xl border border-gray-100">
+                      <span className="text-2xl flex-shrink-0 mt-0.5">{tipo.emoji}</span>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-0.5">
+                          <span className="text-[10px] font-black uppercase tracking-wider" style={{color: tipo.color}}>{tipo.label}</span>
+                          {ev.sincronizado === 0 && <span className="text-[9px] bg-[#FDF1E3] text-[#E67E22] font-bold px-1.5 py-0.5 rounded-full">Local</span>}
+                        </div>
+                        <p className="text-sm font-semibold text-[#2F3E3B]">{ev.descripcion}</p>
+                        <p className="text-[10px] text-[#A69C8A] mt-0.5">{fmt(ev.fecha)} · {fmtH(ev.fecha)}</p>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
-
-          {pesajesOrdenados.length === 0 ? (
-            <div className="text-center py-6 text-[#A69C8A]">
-              <p className="text-3xl mb-2">⚖️</p>
-              <p className="text-sm font-semibold">Sin pesajes registrados</p>
-              <p className="text-xs mt-1">Tocá "Nuevo Pesaje" para registrar el primero.</p>
-            </div>
-          ) : (
-            <div className="space-y-2">
-              {pesajesOrdenados.map((p, idx) => {
-                const anterior = pesajesOrdenados[idx + 1];
-                const diff = anterior ? p.peso - anterior.peso : (p.diferencia ?? null);
-                const esPrimero = idx === pesajesOrdenados.length - 1;
-
-                return (
-                  <div key={p.id}
-                    className={`flex items-center gap-3 p-3 rounded-xl ${esPrimero ? 'bg-gray-50' : 'bg-white'} border border-gray-100`}>
-
-                    {/* Indicador de tendencia */}
-                    <div className={`p-2 rounded-xl flex-shrink-0 ${
-                      diff === null ? 'bg-gray-100 text-gray-400'
-                      : diff > 0 ? 'bg-green-50 text-green-600'
-                      : diff < 0 ? 'bg-red-50 text-red-500'
-                      : 'bg-gray-100 text-gray-400'
-                    }`}>
-                      {diff === null ? <Minus size={16} />
-                        : diff > 0 ? <TrendingUp size={16} />
-                        : diff < 0 ? <TrendingDown size={16} />
-                        : <Minus size={16} />}
-                    </div>
-
-                    {/* Fecha */}
-                    <div className="flex-1 min-w-0">
-                      <p className="text-xs font-bold text-[#2F3E3B]">{formatFecha(p.fecha)}</p>
-                      <p className="text-[10px] text-[#A69C8A]">{formatHora(p.fecha)}</p>
-                    </div>
-
-                    {/* Peso y diferencia */}
-                    <div className="text-right flex-shrink-0">
-                      <p className="text-lg font-black text-gray-900">{p.peso} <span className="text-xs font-normal text-gray-400">kg</span></p>
-                      {diff !== null && (
-                        <p className={`text-[11px] font-bold ${diff > 0 ? 'text-green-600' : diff < 0 ? 'text-red-500' : 'text-gray-400'}`}>
-                          {diff > 0 ? '+' : ''}{diff.toFixed(1)} kg
-                        </p>
-                      )}
-                      {esPrimero && <p className="text-[10px] text-[#A69C8A]">Ingreso</p>}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
-
+        )}
       </div>
 
-      {/* Botón flotante nuevo pesaje */}
-      <div className="fixed bottom-0 left-0 right-0 p-4 bg-white border-t border-gray-100 shadow-lg">
-        <button
-          onClick={onNuevoPesaje}
-          className="w-full bg-[#E67E22] hover:bg-[#d4700f] text-white font-black py-4 rounded-2xl flex items-center justify-center gap-2 active:scale-95 transition-all shadow-lg"
-        >
-          <Scale size={20} /> Registrar Nuevo Pesaje
+      {/* Botones fijos abajo */}
+      <div className="fixed bottom-0 left-0 right-0 p-4 bg-white border-t border-gray-100 shadow-lg flex gap-3">
+        <button onClick={() => setShowEvento(true)}
+          className="flex-1 bg-[#8B5CF6] text-white font-black py-3.5 rounded-2xl flex items-center justify-center gap-2 active:scale-95 transition-all">
+          <Syringe size={18}/> Evento
+        </button>
+        <button onClick={onNuevoPesaje}
+          className="flex-1 bg-[#E67E22] text-white font-black py-3.5 rounded-2xl flex items-center justify-center gap-2 active:scale-95 transition-all">
+          <Scale size={18}/> Pesaje
         </button>
       </div>
+
+      {showEditar   && <EditarAnimalModal  animal={animal}  onClose={() => setShowEditar(false)}/>}
+      {showEvento   && <EventoModal        animal={animal}  onClose={() => setShowEvento(false)}/>}
+      {showConfDel  && <ConfirmarEliminar  animal={animal}  onConfirm={handleEliminar} onCancel={() => setShowConfDel(false)}/>}
     </div>
   );
 };

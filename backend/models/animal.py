@@ -15,4 +15,5 @@ class Animal(Base):
     fecha_ingreso = Column(DateTime, default=datetime.utcnow)
     observaciones = Column(String, nullable=True)
 
-    pesajes = relationship("Pesaje", back_populates="animal", cascade="all, delete-orphan")
+    pesajes  = relationship("Pesaje",  back_populates="animal", cascade="all, delete-orphan")
+    eventos  = relationship("Evento",  back_populates="animal", cascade="all, delete-orphan")

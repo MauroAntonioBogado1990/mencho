@@ -135,8 +135,10 @@ const InicioPage = ({ onVerDetalle }) => {
     if (!online) { setSyncMsg('Sin conexión'); setTimeout(() => setSyncMsg(null), 2000); return; }
     setSyncing(true);
     try {
-      const { push, pullCount } = await sincronizarTodo();
-      setSyncMsg(`↑${push.ok} subidos · ↓${pullCount} del servidor`);
+      const { pushAnim, pushPes, pushEv, pull } = await sincronizarTodo();
+      const subidos = pushAnim.ok + pushPes.ok + pushEv.ok;
+      const bajados = pull.animalesBajados + pull.pesajesBajados + pull.eventosBajados;
+      setSyncMsg(`↑${subidos} subidos · ↓${bajados} bajados`);
     } catch {
       setSyncMsg('Error al conectar con el servidor');
     } finally {
@@ -321,6 +323,7 @@ const AnimalesList = () => {
           animal={animalDetalle}
           onClose={() => setAnimalDetalle(null)}
           onNuevoPesaje={() => setAnimalParaPesar(animalDetalle)}
+          onEliminado={() => setAnimalDetalle(null)}
         />
       )}
 

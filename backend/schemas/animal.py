@@ -10,6 +10,8 @@ class AnimalBase(BaseModel):
     peso_actual: float = Field(0.0, ge=0, description="Peso en kilogramos")
     ubicacion: Optional[str] = Field(None, example="Potrero Norte")
     observaciones: Optional[str] = None
+    genero:    Optional[str] = Field(None, example="Hembra")
+    categoria: Optional[str] = Field(None, example="Vaca madre")
 
 # Esquema para CREAR (Lo que el usuario envía desde el celular)
 class AnimalCreate(AnimalBase):

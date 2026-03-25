@@ -1,11 +1,12 @@
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../db/db';
-import { Plus, CloudOff, Search, X, Home, RefreshCw, Wifi, WifiOff } from 'lucide-react';
+import { Plus, CloudOff, Search, X, Home, RefreshCw, Wifi, WifiOff, BarChart2 } from 'lucide-react';
 import AddAnimalModal from '../components/AddAnimalModal';
 import AddWeighingModal from '../components/AddWeighingModal';
 import LotesPage from './Lotespage';
 import PerfilPage from './Perfilpage';
+import ReportesPage from './ReportesPage';
 import { sincronizarTodo } from '../api/syncService';
 import AnimalDetalle from './AnimalDetalle';
 
@@ -25,7 +26,7 @@ const especieEmoji = (e) => {
 const NavBtn = ({ id, label, icon, tab, setTab }) => (
   <button
     onClick={() => setTab(id)}
-    className={`flex flex-col items-center gap-0.5 px-4 transition-all ${tab === id ? 'text-[#1D5E4D]' : 'text-[#A69C8A]'}`}
+    className={`flex flex-col items-center gap-0.5 px-3 transition-all ${tab === id ? 'text-[#1D5E4D]' : 'text-[#A69C8A]'}`}
   >
     <span className={`${tab === id ? 'scale-110' : ''} transition-transform leading-none`}>{icon}</span>
     <span className={`text-[10px] font-bold uppercase tracking-wider ${tab === id ? 'text-[#1D5E4D]' : 'text-[#C4B8AA]'}`}>{label}</span>
@@ -33,14 +34,17 @@ const NavBtn = ({ id, label, icon, tab, setTab }) => (
   </button>
 );
 
+// ─── NavBar con 4 tabs ────────────────────────────────────────────────────────
 const NavBar = ({ tab, setTab }) => (
-  <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-100 flex items-center justify-around px-4 pt-2 pb-4 z-40 shadow-[0_-4px_20px_rgba(0,0,0,0.06)]">
-    <NavBtn id="inicio" label="Inicio" icon={<Home size={22} />}  tab={tab} setTab={setTab} />
-    <NavBtn id="lotes"  label="Lotes"  icon={<IconoVaca />}        tab={tab} setTab={setTab} />
-    <NavBtn id="perfil" label="Perfil" icon={<IconoSombrero />}    tab={tab} setTab={setTab} />
+  <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-100 flex items-center justify-around px-2 pt-2 pb-4 z-40 shadow-[0_-4px_20px_rgba(0,0,0,0.06)]">
+    <NavBtn id="inicio"    label="Inicio"    icon={<Home size={22} />}      tab={tab} setTab={setTab} />
+    <NavBtn id="lotes"     label="Lotes"     icon={<IconoVaca />}            tab={tab} setTab={setTab} />
+    <NavBtn id="reportes"  label="Reportes"  icon={<BarChart2 size={22} />}  tab={tab} setTab={setTab} />
+    <NavBtn id="perfil"    label="Perfil"    icon={<IconoSombrero />}        tab={tab} setTab={setTab} />
   </nav>
 );
 
+// ─── Modal buscador ───────────────────────────────────────────────────────────
 const BuscadorModal = ({ isOpen, onClose, animales, onSelectAnimal }) => {
   const [query, setQuery] = useState('');
   if (!isOpen) return null;
@@ -111,6 +115,7 @@ const BuscadorModal = ({ isOpen, onClose, animales, onSelectAnimal }) => {
   );
 };
 
+// ─── Pantalla Inicio ──────────────────────────────────────────────────────────
 const InicioPage = ({ onVerDetalle }) => {
   const [isModalOpen, setIsModalOpen]   = useState(false);
   const [buscadorOpen, setBuscadorOpen] = useState(false);
@@ -298,12 +303,12 @@ const InicioPage = ({ onVerDetalle }) => {
   );
 };
 
+// ─── Componente raíz ──────────────────────────────────────────────────────────
 const AnimalesList = () => {
   const [tab, setTab]                         = useState('inicio');
   const [animalDetalle, setAnimalDetalle]     = useState(null);
   const [animalParaPesar, setAnimalParaPesar] = useState(null);
 
-  // Al cerrar el pesaje, refrescar el animal desde Dexie para mostrar peso actualizado
   const handleCerrarPesaje = useCallback(async () => {
     setAnimalParaPesar(null);
     if (animalDetalle) {
@@ -314,9 +319,10 @@ const AnimalesList = () => {
 
   return (
     <>
-      {tab === 'inicio' && <InicioPage onVerDetalle={setAnimalDetalle} />}
-      {tab === 'lotes'  && <LotesPage />}
-      {tab === 'perfil' && <PerfilPage />}
+      {tab === 'inicio'   && <InicioPage onVerDetalle={setAnimalDetalle} />}
+      {tab === 'lotes'    && <LotesPage />}
+      {tab === 'reportes' && <ReportesPage />}
+      {tab === 'perfil'   && <PerfilPage />}
 
       {animalDetalle && (
         <AnimalDetalle

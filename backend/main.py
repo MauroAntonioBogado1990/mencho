@@ -10,6 +10,8 @@ from backend.models.animal import Animal  # noqa
 from backend.models.pesaje import Pesaje  # noqa
 from backend.models.evento import Evento  # noqa
 from backend.api.endpoints import router as animal_router
+from backend.api.reportes import router as reportes_router
+
 
 # Crear todas las tablas en una sola llamada
 Base.metadata.create_all(bind=engine)
@@ -25,7 +27,7 @@ app.add_middleware(
 )
 
 app.include_router(animal_router)
-
+app.include_router(reportes_router)
 @app.get("/")
 async def read_root():
     return {"message": "Mencho API v0.2 en línea"}

@@ -46,6 +46,30 @@ db.version(4).stores({
   });
 });
 
+// v5: genero y categoria por animal
+db.version(5).stores({
+  animales: '++id, caravana, peso_actual, sincronizado, lote_id, especie, raza, ubicacion, observaciones, fecha_ingreso, server_id, genero, categoria',
+  pesajes:  '++id, animal_id, peso, fecha, sincronizado, server_id',
+  lotes:    '++id, nombre, descripcion',
+  eventos:  '++id, animal_id, tipo, descripcion, fecha, sincronizado',
+}).upgrade(async tx => {
+  await tx.table('animales').toCollection().modify(a => {
+    if (a.genero    === undefined) a.genero    = null;
+    if (a.categoria === undefined) a.categoria = null;
+  });
+});
+
+export const CATEGORIAS_VACA_HEMBRA = [
+  'Ternera',
+  'Vaquillita',
+  'Vaquilla',
+  'Vaquilla primer servicio',
+  'Vaca de cría',
+  'Vaca madre',
+  'Vaca madre con cría a pie',
+  'Vaca madre q (última cría)',
+];
+
 export const ESPECIES_RAZAS = {
   'Vaca':   ['Brahman', 'Angus', 'Brangus', 'Braangus', 'Hereford', 'Braford'],
   'Oveja':  ['Merino', 'Romney Marsh', 'Corriedale', 'Lincoln', 'Ideal'],

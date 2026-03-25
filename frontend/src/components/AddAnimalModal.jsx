@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { db, ESPECIES_RAZAS } from '../db/db';
+import { db, ESPECIES_RAZAS, CATEGORIAS_VACA_HEMBRA } from '../db/db';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { X, Save, CheckCircle, ChevronDown } from 'lucide-react';
 
@@ -12,6 +12,8 @@ const AddAnimalModal = ({ isOpen, onClose }) => {
   const [mostrarRazaCustom, setMostrarRazaCustom]   = useState(false);
   const [especieCustom, setEspecieCustom]           = useState('');
   const [mostrarEspecieCustom, setMostrarEspecieCustom] = useState(false);
+  const [genero, setGenero]                         = useState('');
+  const [categoria, setCategoria]                   = useState('');
   const [loteId, setLoteId]                         = useState('');
   const [ubicacion, setUbicacion]                   = useState('');
   const [observaciones, setObservaciones]           = useState('');
@@ -33,6 +35,7 @@ const AddAnimalModal = ({ isOpen, onClose }) => {
       setMostrarEspecieCustom(false); setEspecie(val);
       setRaza(''); setRazaCustom(''); setMostrarRazaCustom(false);
     }
+    setGenero(''); setCategoria('');
   };
 
   const handleRazaChange = (val) => {
@@ -50,6 +53,7 @@ const AddAnimalModal = ({ isOpen, onClose }) => {
     setCaravana(''); setPeso(''); setEspecie('Vaca');
     setRaza(''); setRazaCustom(''); setEspecieCustom('');
     setMostrarRazaCustom(false); setMostrarEspecieCustom(false);
+    setGenero(''); setCategoria('');
     setLoteId(''); setUbicacion(''); setObservaciones('');
   };
 
@@ -62,6 +66,8 @@ const AddAnimalModal = ({ isOpen, onClose }) => {
         peso_actual:   parseFloat(peso),
         especie:       especieFinal,
         raza:          razaFinal,
+        genero:        genero || null,
+        categoria:     categoria || null,
         lote_id:       loteId ? parseInt(loteId) : null,
         ubicacion:     ubicacion.trim() || null,
         observaciones: observaciones.trim() || null,
@@ -119,6 +125,25 @@ const AddAnimalModal = ({ isOpen, onClose }) => {
                     value={especieCustom} onChange={e => setEspecieCustom(e.target.value)} />
                 )}
               </Field>
+
+              {/* Género */}
+              <Field label="Género">
+                <SelectBase value={genero} onChange={e => { setGenero(e.target.value); setCategoria(''); }}>
+                  <option value="">Seleccionar género...</option>
+                  <option value="Hembra">Hembra</option>
+                  <option value="Macho">Macho</option>
+                </SelectBase>
+              </Field>
+
+              {/* Categoría — solo Vaca + Hembra */}
+              {especie === 'Vaca' && genero === 'Hembra' && (
+                <Field label="Categoría">
+                  <SelectBase value={categoria} onChange={e => setCategoria(e.target.value)}>
+                    <option value="">Seleccionar categoría...</option>
+                    {CATEGORIAS_VACA_HEMBRA.map(c => <option key={c} value={c}>{c}</option>)}
+                  </SelectBase>
+                </Field>
+              )}
 
               {/* Raza */}
               <Field label="Raza">

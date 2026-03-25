@@ -15,6 +15,18 @@ const getServerIdByCaravana = async (caravana) => {
   } catch { return null; }
 };
 
+/**
+ * Dado un animal local, resuelve el nombre del lote desde Dexie.
+ * Si tiene lote_id busca en db.lotes; si no, devuelve null.
+ */
+const resolverLoteNombre = async (animal) => {
+  if (!animal.lote_id) return null;
+  try {
+    const lote = await db.lotes.get(animal.lote_id);
+    return lote?.nombre ?? null;
+  } catch { return null; }
+};
+
 // ── PUSH Animales ──────────────────────────────────────────────
 export async function pushAnimalesPendientes() {
   const pendientes = await db.animales.where('sincronizado').equals(0).toArray();
@@ -22,19 +34,22 @@ export async function pushAnimalesPendientes() {
 
   for (const animal of pendientes) {
     try {
+      // Resolver nombre del lote antes de subir
+      const lote_nombre = await resolverLoteNombre(animal);
+
       const { data } = await api.post('/animales/', {
         caravana:      animal.caravana,
         especie:       animal.especie || 'Vaca',
         raza:          animal.raza || null,
         peso_actual:   animal.peso_actual,
         ubicacion:     animal.ubicacion || null,
+        lote_nombre:   lote_nombre,              // ← nuevo
         observaciones: animal.observaciones || null,
       });
       await db.animales.update(animal.id, { sincronizado: 1, server_id: data.id });
       resultado.ok++;
     } catch (err) {
       if (err.response?.status === 400) {
-        // Ya existe en server — buscar su server_id
         const sid = await getServerIdByCaravana(animal.caravana);
         await db.animales.update(animal.id, { sincronizado: 1, server_id: sid });
       } else {
@@ -51,16 +66,12 @@ export async function pushPesajesPendientes() {
   const resultado = { ok: 0, error: 0 };
 
   for (const pesaje of pendientes) {
-    // Necesitamos el server_id del animal
     const animal = await db.animales.get(pesaje.animal_id);
-    if (!animal?.server_id) {
-      // El animal aún no fue sincronizado, saltear por ahora
-      continue;
-    }
+    if (!animal?.server_id) { continue; }
     try {
       const { data } = await api.post('/animales/registrar-peso', {
-        animal_id:   animal.server_id,
-        peso:        pesaje.peso,
+        animal_id:    animal.server_id,
+        peso:         pesaje.peso,
         fecha_pesaje: pesaje.fecha,
       });
       await db.pesajes.update(pesaje.id, { sincronizado: 1, server_id: data.id });
@@ -100,8 +111,8 @@ export async function pushEventosPendientes() {
 export async function pullDesdeServidor() {
   const { data: animalesServer } = await api.get('/animales/');
   let animalesBajados = 0;
-  let pesajesBajados = 0;
-  let eventosBajados = 0;
+  let pesajesBajados  = 0;
+  let eventosBajados  = 0;
 
   for (const as of animalesServer) {
     const existe = await db.animales.where('caravana').equals(as.caravana).first();
@@ -113,6 +124,7 @@ export async function pullDesdeServidor() {
         raza:          as.raza || '',
         peso_actual:   as.peso_actual,
         ubicacion:     as.ubicacion || null,
+        lote_nombre:   as.lote_nombre || null,   // ← nuevo
         observaciones: as.observaciones || null,
         fecha_ingreso: as.fecha_ingreso || new Date().toISOString(),
         lote_id:       null,
@@ -121,29 +133,31 @@ export async function pullDesdeServidor() {
       });
       animalesBajados++;
     } else {
-      // Actualizar server_id si no lo tenía
       if (!existe.server_id) {
         await db.animales.update(existe.id, { server_id: as.id });
       }
+      // Actualizar lote_nombre si el servidor lo tiene y local no
+      if (as.lote_nombre && !existe.lote_nombre) {
+        await db.animales.update(existe.id, { lote_nombre: as.lote_nombre });
+      }
     }
 
-    // Bajar pesajes del servidor para este animal
+    // Bajar pesajes
     try {
       const animalLocal = await db.animales.where('caravana').equals(as.caravana).first();
       if (!animalLocal) continue;
 
       const { data: pesajesServer } = await api.get(`/animales/${as.id}/pesajes`);
       for (const ps of pesajesServer) {
-        const existePesaje = await db.pesajes
-          .where('server_id').equals(ps.id).first();
+        const existePesaje = await db.pesajes.where('server_id').equals(ps.id).first();
         if (!existePesaje) {
           await db.pesajes.add({
-            animal_id:   animalLocal.id,
-            peso:        ps.peso,
-            fecha:       ps.fecha_pesaje,
-            diferencia:  null,
+            animal_id:    animalLocal.id,
+            peso:         ps.peso,
+            fecha:        ps.fecha_pesaje,
+            diferencia:   null,
             sincronizado: 1,
-            server_id:   ps.id,
+            server_id:    ps.id,
           });
           pesajesBajados++;
         }
@@ -158,17 +172,16 @@ export async function pullDesdeServidor() {
           .first()
           .catch(() => null);
 
-        // Fallback: buscar por descripción y animal
         const existe2 = await db.eventos
           .filter(e => e.animal_id === animalLocal.id && e.descripcion === ev.descripcion)
           .first();
 
         if (!existeEvento && !existe2) {
           await db.eventos.add({
-            animal_id:   animalLocal.id,
-            tipo:        ev.tipo,
-            descripcion: ev.descripcion,
-            fecha:       ev.fecha,
+            animal_id:    animalLocal.id,
+            tipo:         ev.tipo,
+            descripcion:  ev.descripcion,
+            fecha:        ev.fecha,
             sincronizado: 1,
           });
           eventosBajados++;
@@ -182,9 +195,9 @@ export async function pullDesdeServidor() {
 
 // ── SYNC COMPLETO ──────────────────────────────────────────────
 export async function sincronizarTodo() {
-  const pushAnim   = await pushAnimalesPendientes();
-  const pushPes    = await pushPesajesPendientes();
-  const pushEv     = await pushEventosPendientes();
-  const pull       = await pullDesdeServidor();
+  const pushAnim = await pushAnimalesPendientes();
+  const pushPes  = await pushPesajesPendientes();
+  const pushEv   = await pushEventosPendientes();
+  const pull     = await pullDesdeServidor();
   return { pushAnim, pushPes, pushEv, pull };
 }

@@ -108,6 +108,7 @@ const ReportesPage = () => {
         if (!loteSelec) { setError('Seleccioná un lote.'); setCargando(false); return; }
         url = `${API}/reportes/evolucion-lote/${encodeURIComponent(loteSelec)}?${params}`;
       } else if (modo === 'periodo') {
+        if (loteSelec) params.set('lote_nombre', loteSelec);
         url = `${API}/reportes/evolucion-periodo?${params}`;
       } else {
         if (!caravana.trim()) { setError('Ingresá la caravana del animal.'); setCargando(false); return; }

@@ -7,6 +7,7 @@ from backend.schemas.pesaje import PesajeCreate
 from backend.schemas.evento import EventoCreate
 from backend.core.exceptions import CaravanaDuplicadaException
 from datetime import datetime
+import re
 
 def get_animal_by_caravana(db: Session, caravana: str):
     return db.query(Animal).filter(Animal.caravana == caravana).first()
@@ -61,6 +62,19 @@ def crear_evento(db: Session, animal_id: int, evento_in: EventoCreate):
         descripcion=evento_in.descripcion,
         fecha=evento_in.fecha or datetime.utcnow(),
     )
+
+    # Si es un cambio de lote, actualizar lote_nombre en el animal
+    if evento_in.tipo == "cambio_lote":
+        db_animal = get_animal_by_id(db, animal_id)
+        if db_animal:
+            # Extraer destino del formato: 'Movido de "X" a "Y"'
+            match = re.search(r'a\s+"([^"]+)"', evento_in.descripcion)
+            if match:
+                db_animal.lote_nombre = match.group(1)
+            else:
+                # Si la descripción no sigue el formato, guardarla directo
+                db_animal.lote_nombre = evento_in.descripcion
+
     db.add(nuevo)
     db.commit()
     db.refresh(nuevo)

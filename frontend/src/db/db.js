@@ -31,7 +31,6 @@ db.version(3).stores({
   });
 });
 
-// v4: tabla eventos (cambio_lote, vacuna, observacion) + server_id para sync
 db.version(4).stores({
   animales: '++id, caravana, peso_actual, sincronizado, lote_id, especie, raza, ubicacion, observaciones, fecha_ingreso, server_id',
   pesajes:  '++id, animal_id, peso, fecha, sincronizado, server_id',
@@ -46,7 +45,6 @@ db.version(4).stores({
   });
 });
 
-// v5: genero y categoria por animal
 db.version(5).stores({
   animales: '++id, caravana, peso_actual, sincronizado, lote_id, especie, raza, ubicacion, observaciones, fecha_ingreso, server_id, genero, categoria',
   pesajes:  '++id, animal_id, peso, fecha, sincronizado, server_id',
@@ -59,15 +57,18 @@ db.version(5).stores({
   });
 });
 
+// v6: tabla recordatorios para alertas de próximas aplicaciones
+db.version(6).stores({
+  animales:      '++id, caravana, peso_actual, sincronizado, lote_id, especie, raza, ubicacion, observaciones, fecha_ingreso, server_id, genero, categoria',
+  pesajes:       '++id, animal_id, peso, fecha, sincronizado, server_id',
+  lotes:         '++id, nombre, descripcion',
+  eventos:       '++id, animal_id, tipo, descripcion, fecha, sincronizado',
+  recordatorios: '++id, animal_id, tipo, descripcion, fecha_programada, completado',
+});
+
 export const CATEGORIAS_VACA_HEMBRA = [
-  'Ternera',
-  'Vaquillita',
-  'Vaquilla',
-  'Vaquilla primer servicio',
-  'Vaca de cría',
-  'Vaca madre',
-  'Vaca madre con cría a pie',
-  'Vaca madre q (última cría)',
+  'Ternera', 'Vaquillita', 'Vaquilla', 'Vaquilla primer servicio',
+  'Vaca de cría', 'Vaca madre', 'Vaca madre con cría a pie', 'Vaca madre q (última cría)',
 ];
 
 export const ESPECIES_RAZAS = {
@@ -76,10 +77,9 @@ export const ESPECIES_RAZAS = {
   'Búfalo': ['Mediterráneo', 'Murrah', 'Jafarabadi'],
 };
 
-// Tipos de evento con label y color
 export const TIPOS_EVENTO = {
   cambio_lote:  { label: 'Cambio de Lote',  emoji: '🏡', color: '#1D5E4D' },
   vacuna:       { label: 'Vacuna',           emoji: '💉', color: '#8B5CF6' },
   observacion:  { label: 'Observación',      emoji: '📝', color: '#E67E22' },
   tratamiento:  { label: 'Tratamiento',      emoji: '🩺', color: '#EF4444' },
-};
+};                

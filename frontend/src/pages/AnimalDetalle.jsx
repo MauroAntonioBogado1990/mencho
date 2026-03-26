@@ -4,7 +4,7 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import {
   ChevronRight, TrendingUp, TrendingDown, Minus, MapPin,
   Calendar, FileText, Scale, Pencil, Trash2, X, Save,
-  CheckCircle, Syringe, StickyNote, MoveRight, ChevronDown
+  CheckCircle, Syringe, StickyNote, MoveRight, ChevronDown, Bell
 } from 'lucide-react';
 
 // ── Helpers ────────────────────────────────────────────────────
@@ -22,21 +22,38 @@ const fmtH = (iso) => !iso ? '' : new Date(iso).toLocaleTimeString('es-AR', { ho
 
 // ── Modal Registrar Evento ─────────────────────────────────────
 const EventoModal = ({ animal, onClose }) => {
-  const [tipo, setTipo]           = useState('vacuna');
-  const [descripcion, setDesc]    = useState('');
-  const [loteDestino, setLoteDest]= useState('');
-  const [guardado, setGuardado]   = useState(false);
+  const [tipo, setTipo]               = useState('vacuna');
+  const [descripcion, setDesc]        = useState('');
+  const [loteDestino, setLoteDest]    = useState('');
+  const [guardado, setGuardado]       = useState(false);
+
+  // Recordatorio
+  const [agregarRecordatorio, setAgregarRec] = useState(false);
+  const [fechaProxima, setFechaProxima]      = useState('');
+  const [descRec, setDescRec]                = useState('');
+
   const lotes = useLiveQuery(() => db.lotes.toArray(), []);
+
+  // Cuando cambia el tipo, resetear recordatorio si no aplica
+  const handleTipo = (t) => {
+    setTipo(t);
+    if (t !== 'vacuna' && t !== 'tratamiento') {
+      setAgregarRec(false);
+      setFechaProxima('');
+      setDescRec('');
+    }
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     let desc = descripcion.trim();
+
     if (tipo === 'cambio_lote') {
       const lote = lotes?.find(l => l.id === parseInt(loteDestino));
       desc = lote ? `Movido al lote: ${lote.nombre}` : 'Cambio de lote';
-      // Actualizar lote del animal
       await db.animales.update(animal.id, { lote_id: loteDestino ? parseInt(loteDestino) : null, sincronizado: 0 });
     }
+
     await db.eventos.add({
       animal_id:    animal.id,
       tipo,
@@ -44,9 +61,24 @@ const EventoModal = ({ animal, onClose }) => {
       fecha:        new Date().toISOString(),
       sincronizado: 0,
     });
+
+    // Guardar recordatorio si el usuario lo activó
+    if (agregarRecordatorio && fechaProxima && (tipo === 'vacuna' || tipo === 'tratamiento')) {
+      const descFinal = descRec.trim() || `Próxima aplicación: ${desc}`;
+      await db.recordatorios.add({
+        animal_id:        animal.id,
+        tipo,
+        descripcion:      descFinal,
+        fecha_programada: fechaProxima,   // 'YYYY-MM-DD'
+        completado:       false,
+      });
+    }
+
     setGuardado(true);
     setTimeout(() => { setGuardado(false); onClose(); }, 1200);
   };
+
+  const puedeRecordatorio = tipo === 'vacuna' || tipo === 'tratamiento';
 
   return (
     <div className="fixed inset-0 bg-black/60 flex items-end sm:items-center justify-center p-0 sm:p-4 z-[60]">
@@ -55,20 +87,27 @@ const EventoModal = ({ animal, onClose }) => {
           <h2 className="text-lg font-black text-[#1D5E4D] italic">Nuevo Evento</h2>
           <button onClick={onClose} className="p-2 bg-gray-100 rounded-full text-[#A69C8A]"><X size={18}/></button>
         </div>
-        <div className="px-6 py-5">
+        <div className="px-6 py-5 max-h-[85vh] overflow-y-auto">
           {guardado ? (
             <div className="flex flex-col items-center py-10 text-[#1D5E4D]">
-              <CheckCircle size={60}/><p className="mt-3 font-black text-lg">Evento registrado</p>
+              <CheckCircle size={60}/>
+              <p className="mt-3 font-black text-lg">Evento registrado</p>
+              {agregarRecordatorio && fechaProxima && (
+                <p className="text-sm text-[#A69C8A] mt-1 flex items-center gap-1">
+                  <Bell size={14}/> Recordatorio guardado para {new Date(fechaProxima + 'T12:00:00').toLocaleDateString('es-AR', { day:'2-digit', month:'short' })}
+                </p>
+              )}
             </div>
           ) : (
             <form onSubmit={handleSubmit} className="space-y-4">
+
               {/* Tipo */}
               <div>
                 <label className="block text-xs font-bold text-[#A69C8A] uppercase tracking-wider mb-1.5">Tipo de Evento</label>
                 <div className="grid grid-cols-2 gap-2">
                   {Object.entries(TIPOS_EVENTO).map(([key, val]) => (
                     <button key={key} type="button"
-                      onClick={() => setTipo(key)}
+                      onClick={() => handleTipo(key)}
                       className={`p-3 rounded-xl border-2 text-sm font-bold flex items-center gap-2 transition-all ${
                         tipo === key ? 'border-[#1D5E4D] bg-[#EAF4F0] text-[#1D5E4D]' : 'border-gray-100 bg-gray-50 text-[#A69C8A]'
                       }`}>
@@ -78,7 +117,7 @@ const EventoModal = ({ animal, onClose }) => {
                 </div>
               </div>
 
-              {/* Lote destino (solo si es cambio_lote) */}
+              {/* Lote destino */}
               {tipo === 'cambio_lote' && (
                 <div>
                   <label className="block text-xs font-bold text-[#A69C8A] uppercase tracking-wider mb-1.5">Lote Destino</label>
@@ -103,6 +142,63 @@ const EventoModal = ({ animal, onClose }) => {
                     className="w-full p-4 border-2 border-gray-100 rounded-xl bg-gray-50 focus:border-[#1D5E4D] outline-none font-semibold"
                     placeholder={tipo === 'vacuna' ? 'Ej: Aftosa 2ml, Brucelosis...' : 'Describí el evento...'}
                     value={descripcion} onChange={e => setDesc(e.target.value)}/>
+                </div>
+              )}
+
+              {/* ── Sección Recordatorio (solo vacuna/tratamiento) ── */}
+              {puedeRecordatorio && (
+                <div className={`rounded-2xl border-2 transition-all ${agregarRecordatorio ? 'border-[#8B5CF6] bg-purple-50' : 'border-gray-100 bg-gray-50'}`}>
+                  {/* Toggle */}
+                  <button
+                    type="button"
+                    onClick={() => setAgregarRec(v => !v)}
+                    className="w-full flex items-center justify-between px-4 py-3"
+                  >
+                    <div className="flex items-center gap-2">
+                      <Bell size={16} className={agregarRecordatorio ? 'text-[#8B5CF6]' : 'text-[#A69C8A]'}/>
+                      <span className={`text-sm font-black ${agregarRecordatorio ? 'text-[#8B5CF6]' : 'text-[#A69C8A]'}`}>
+                        Programar próxima aplicación
+                      </span>
+                    </div>
+                    {/* Switch visual */}
+                    <div className={`w-11 h-6 rounded-full transition-colors flex items-center px-0.5 ${agregarRecordatorio ? 'bg-[#8B5CF6]' : 'bg-gray-300'}`}>
+                      <div className={`w-5 h-5 bg-white rounded-full shadow transition-transform ${agregarRecordatorio ? 'translate-x-5' : 'translate-x-0'}`}/>
+                    </div>
+                  </button>
+
+                  {/* Campos del recordatorio */}
+                  {agregarRecordatorio && (
+                    <div className="px-4 pb-4 space-y-3 border-t border-purple-100 pt-3">
+                      <div>
+                        <label className="block text-xs font-bold text-[#8B5CF6] uppercase tracking-wider mb-1.5">
+                          Fecha de próxima aplicación *
+                        </label>
+                        <input
+                          type="date"
+                          required={agregarRecordatorio}
+                          value={fechaProxima}
+                          min={new Date().toISOString().split('T')[0]}
+                          onChange={e => setFechaProxima(e.target.value)}
+                          className="w-full p-3.5 border-2 border-purple-200 rounded-xl bg-white focus:border-[#8B5CF6] outline-none font-semibold text-sm"
+                        />
+                        <p className="text-[10px] text-[#A69C8A] mt-1">
+                          Recibirás un aviso 7 días antes en la pantalla de inicio.
+                        </p>
+                      </div>
+                      <div>
+                        <label className="block text-xs font-bold text-[#8B5CF6] uppercase tracking-wider mb-1.5">
+                          Nota del recordatorio (opcional)
+                        </label>
+                        <input
+                          type="text"
+                          value={descRec}
+                          onChange={e => setDescRec(e.target.value)}
+                          placeholder={`Ej: Segunda dosis ${descripcion || tipo}`}
+                          className="w-full p-3.5 border-2 border-purple-200 rounded-xl bg-white focus:border-[#8B5CF6] outline-none font-semibold text-sm"
+                        />
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -150,7 +246,6 @@ const EditarAnimalModal = ({ animal, onClose }) => {
     const razaFinal    = showRazaCu ? razaCustom : raza;
     const nuevoLoteId  = loteId ? parseInt(loteId) : null;
 
-    // Si cambió el lote, registrar evento en historial
     if (nuevoLoteId !== (animal.lote_id ?? null)) {
       const loteAnterior = lotes?.find(l => l.id === (animal.lote_id ?? null));
       const loteNuevo    = lotes?.find(l => l.id === nuevoLoteId);
@@ -194,7 +289,6 @@ const EditarAnimalModal = ({ animal, onClose }) => {
             </div>
           ) : (
             <form onSubmit={handleSubmit} className="space-y-4">
-              {/* Especie */}
               <div>
                 <label className="block text-xs font-bold text-[#A69C8A] uppercase tracking-wider mb-1.5">Especie</label>
                 <div className="relative">
@@ -206,7 +300,6 @@ const EditarAnimalModal = ({ animal, onClose }) => {
                 </div>
                 {showEspCu && <input type="text" required className="mt-2 w-full p-3 border-2 border-[#E67E22]/40 rounded-xl bg-[#FDF1E3] outline-none text-sm font-semibold" placeholder="Nueva especie..." value={especieCustom} onChange={e => setEspCu(e.target.value)}/>}
               </div>
-              {/* Raza */}
               <div>
                 <label className="block text-xs font-bold text-[#A69C8A] uppercase tracking-wider mb-1.5">Raza</label>
                 <div className="relative">
@@ -219,7 +312,6 @@ const EditarAnimalModal = ({ animal, onClose }) => {
                 </div>
                 {showRazaCu && <input type="text" className="mt-2 w-full p-3 border-2 border-[#E67E22]/40 rounded-xl bg-[#FDF1E3] outline-none text-sm font-semibold" placeholder="Nueva raza..." value={razaCustom} onChange={e => setRazaCu(e.target.value)}/>}
               </div>
-              {/* Lote */}
               <div>
                 <label className="block text-xs font-bold text-[#A69C8A] uppercase tracking-wider mb-1.5">Lote Asignado</label>
                 <div className="relative">
@@ -236,13 +328,11 @@ const EditarAnimalModal = ({ animal, onClose }) => {
                   </p>
                 )}
               </div>
-              {/* Ubicación */}
               <div>
                 <label className="block text-xs font-bold text-[#A69C8A] uppercase tracking-wider mb-1.5">Ubicación / Potrero</label>
                 <input type="text" className="w-full p-4 border-2 border-gray-100 rounded-xl bg-gray-50 focus:border-[#1D5E4D] outline-none font-semibold"
                   placeholder="Potrero Norte, Zona del río..." value={ubicacion} onChange={e => setUbicacion(e.target.value)}/>
               </div>
-              {/* Observaciones */}
               <div>
                 <label className="block text-xs font-bold text-[#A69C8A] uppercase tracking-wider mb-1.5">Observaciones</label>
                 <textarea rows={3} className="w-full p-4 border-2 border-gray-100 rounded-xl bg-gray-50 focus:border-[#1D5E4D] outline-none resize-none text-sm font-medium"
@@ -276,7 +366,7 @@ const ConfirmarEliminar = ({ animal, onConfirm, onCancel }) => (
 
 // ── Componente principal ───────────────────────────────────────
 const AnimalDetalle = ({ animal: animalProp, onClose, onNuevoPesaje, onEliminado }) => {
-  const [tab, setTab]               = useState('pesajes'); // 'pesajes' | 'eventos'
+  const [tab, setTab]               = useState('pesajes');
   const [showEditar, setShowEditar] = useState(false);
   const [showEvento, setShowEvento] = useState(false);
   const [showConfDel, setShowConfDel] = useState(false);
@@ -305,14 +395,15 @@ const AnimalDetalle = ({ animal: animalProp, onClose, onNuevoPesaje, onEliminado
 
   const pesajesOrdenados = [...(pesajes || [])].reverse();
   const eventosOrdenados = [...(eventos || [])].reverse();
-  const pesoIngreso  = pesajes?.length > 0 ? pesajes[0].peso : null;
+  const pesoIngreso   = pesajes?.length > 0 ? pesajes[0].peso : null;
   const gananciaTotal = pesoIngreso !== null ? animal.peso_actual - pesoIngreso : 0;
-  const dias = animal.fecha_ingreso ? Math.floor((Date.now() - new Date(animal.fecha_ingreso)) / 86400000) : null;
-  const gdpg = dias > 0 && gananciaTotal !== 0 ? (gananciaTotal / dias).toFixed(2) : null;
+  const dias  = animal.fecha_ingreso ? Math.floor((Date.now() - new Date(animal.fecha_ingreso)) / 86400000) : null;
+  const gdpg  = dias > 0 && gananciaTotal !== 0 ? (gananciaTotal / dias).toFixed(2) : null;
 
   const handleEliminar = async () => {
     await db.pesajes.where('animal_id').equals(animal.id).delete();
     await db.eventos.where('animal_id').equals(animal.id).delete();
+    await db.recordatorios.where('animal_id').equals(animal.id).delete();
     await db.animales.delete(animal.id);
     onEliminado?.();
     onClose();
@@ -331,7 +422,6 @@ const AnimalDetalle = ({ animal: animalProp, onClose, onNuevoPesaje, onEliminado
             <p className="text-[10px] font-bold text-[#A69C8A] uppercase tracking-wider">Ficha del Animal</p>
             <h1 className="text-2xl font-black font-mono text-[#1D5E4D]">{animal.caravana}</h1>
           </div>
-          {/* Acciones */}
           <button onClick={() => setShowEditar(true)} className="p-2.5 bg-[#EAF4F0] rounded-full text-[#1D5E4D]">
             <Pencil size={18}/>
           </button>
@@ -371,9 +461,9 @@ const AnimalDetalle = ({ animal: animalProp, onClose, onNuevoPesaje, onEliminado
         {(animal.ubicacion || animal.fecha_ingreso || animal.observaciones) && (
           <div className="bg-white rounded-2xl p-5 space-y-3">
             <h3 className="text-xs font-black text-[#A69C8A] uppercase tracking-wider">Datos del Animal</h3>
-            {animal.ubicacion    && <InfoRow icon={<MapPin size={15}/>}    label="Ubicación"       value={animal.ubicacion}/>}
-            {animal.fecha_ingreso && <InfoRow icon={<Calendar size={15}/>}  label="Fecha de ingreso" value={`${fmt(animal.fecha_ingreso)}${dias !== null ? ` · hace ${dias} días` : ''}`}/>}
-            {animal.observaciones && <InfoRow icon={<FileText size={15}/>}  label="Observaciones"   value={animal.observaciones}/>}
+            {animal.ubicacion     && <InfoRow icon={<MapPin size={15}/>}   label="Ubicación"        value={animal.ubicacion}/>}
+            {animal.fecha_ingreso && <InfoRow icon={<Calendar size={15}/>} label="Fecha de ingreso"  value={`${fmt(animal.fecha_ingreso)}${dias !== null ? ` · hace ${dias} días` : ''}`}/>}
+            {animal.observaciones && <InfoRow icon={<FileText size={15}/>} label="Observaciones"    value={animal.observaciones}/>}
           </div>
         )}
 
@@ -449,13 +539,13 @@ const AnimalDetalle = ({ animal: animalProp, onClose, onNuevoPesaje, onEliminado
             ) : (
               <div className="space-y-2">
                 {eventosOrdenados.map(ev => {
-                  const tipo = TIPOS_EVENTO[ev.tipo] || { emoji: '📝', label: ev.tipo, color: '#A69C8A' };
+                  const tipoInfo = TIPOS_EVENTO[ev.tipo] || { emoji: '📝', label: ev.tipo, color: '#A69C8A' };
                   return (
                     <div key={ev.id} className="flex items-start gap-3 p-3 rounded-xl border border-gray-100">
-                      <span className="text-2xl flex-shrink-0 mt-0.5">{tipo.emoji}</span>
+                      <span className="text-2xl flex-shrink-0 mt-0.5">{tipoInfo.emoji}</span>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 mb-0.5">
-                          <span className="text-[10px] font-black uppercase tracking-wider" style={{color: tipo.color}}>{tipo.label}</span>
+                          <span className="text-[10px] font-black uppercase tracking-wider" style={{color: tipoInfo.color}}>{tipoInfo.label}</span>
                           {ev.sincronizado === 0 && <span className="text-[9px] bg-[#FDF1E3] text-[#E67E22] font-bold px-1.5 py-0.5 rounded-full">Local</span>}
                         </div>
                         <p className="text-sm font-semibold text-[#2F3E3B]">{ev.descripcion}</p>

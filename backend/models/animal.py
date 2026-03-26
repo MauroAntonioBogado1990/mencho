@@ -20,3 +20,4 @@ class Animal(Base):
 
     pesajes = relationship("Pesaje", back_populates="animal", cascade="all, delete-orphan")
     eventos = relationship("Evento", back_populates="animal", cascade="all, delete-orphan")
+    recordatorios = relationship("Recordatorio", back_populates="animal", cascade="all, delete-orphan")

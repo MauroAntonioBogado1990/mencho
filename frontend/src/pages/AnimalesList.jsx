@@ -9,6 +9,7 @@ import PerfilPage from './Perfilpage';
 import ReportesPage from './ReportesPage';
 import { sincronizarTodo } from '../api/syncService';
 import AnimalDetalle from './AnimalDetalle';
+import RecordatoriosWidget from '../components/RecordatoriosWidget';  // ← NUEVO
 
 const IconoVaca      = () => <span style={{fontSize:24,lineHeight:1}}>🐄</span>;
 const IconoSombrero  = () => <span style={{fontSize:24,lineHeight:1}}>🤠</span>;
@@ -34,7 +35,6 @@ const NavBtn = ({ id, label, icon, tab, setTab }) => (
   </button>
 );
 
-// ─── NavBar con 4 tabs ────────────────────────────────────────────────────────
 const NavBar = ({ tab, setTab }) => (
   <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-100 flex items-center justify-around px-2 pt-2 pb-4 z-40 shadow-[0_-4px_20px_rgba(0,0,0,0.06)]">
     <NavBtn id="inicio"    label="Inicio"    icon={<Home size={22} />}      tab={tab} setTab={setTab} />
@@ -44,7 +44,6 @@ const NavBar = ({ tab, setTab }) => (
   </nav>
 );
 
-// ─── Modal buscador ───────────────────────────────────────────────────────────
 const BuscadorModal = ({ isOpen, onClose, animales, onSelectAnimal }) => {
   const [query, setQuery] = useState('');
   if (!isOpen) return null;
@@ -204,6 +203,9 @@ const InicioPage = ({ onVerDetalle }) => {
           <WifiOff size={16} /> Modo sin conexión — los cambios se guardan localmente
         </div>
       )}
+
+      {/* ── Widget de recordatorios (aparece solo si hay recordatorios pendientes) ── */}
+      <RecordatoriosWidget />
 
       <div className="flex gap-2 mb-5 overflow-x-auto pb-1">
         <button

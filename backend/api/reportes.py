@@ -53,6 +53,17 @@ def listar_lotes(db: Session = Depends(get_db)):
     )
     return {"lotes": [r.lote_nombre for r in resultados]}
 
+@router.get("/caravanas")
+def listar_caravanas(db: Session = Depends(get_db)):
+    """Devuelve todas las caravanas distintas registradas en animales."""
+    resultados = (
+        db.query(Animal.caravana)
+        .filter(Animal.caravana.isnot(None))
+        .distinct()
+        .order_by(Animal.caravana)
+        .all()
+    )
+    return {"caravanas": [r.caravana for r in resultados]}
 
 @router.get("/evolucion-lote/{lote_nombre}")
 def evolucion_por_lote(

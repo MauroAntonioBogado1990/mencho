@@ -4,7 +4,7 @@ import {
   Tooltip, ResponsiveContainer, ReferenceLine,
 } from 'recharts';
 import { Search, TrendingUp, TrendingDown, Minus, ChevronRight, BarChart2 } from 'lucide-react';
-
+import CaravanaAutocomplete from '../components/CaravanaAutocomplete';
 const API = import.meta.env.VITE_API_URL ?? 'http://localhost:8000';
 
 // ─── Tooltip personalizado ────────────────────────────────────────────────────
@@ -197,7 +197,7 @@ const ReportesPage = () => {
         )}
 
         {/* Caravana animal */}
-        {modo === 'animal' && (
+        {/* {modo === 'animal' && (
           <div>
             <label className="block text-xs font-bold text-[#A69C8A] uppercase tracking-wider mb-1.5">
               Caravana *
@@ -209,6 +209,14 @@ const ReportesPage = () => {
               onChange={e => setCaravana(e.target.value)}
               className="w-full p-3.5 border-2 border-gray-100 rounded-xl bg-gray-50 focus:border-[#1D5E4D] outline-none text-sm font-semibold font-mono uppercase"
             />
+          </div>
+        )} */}
+        {modo === 'animal' && (
+          <div>
+            <label className="block text-xs font-bold text-[#A69C8A] uppercase tracking-wider mb-1.5">
+              Caravana *
+            </label>
+            <CaravanaAutocomplete value={caravana} onChange={setCaravana} />
           </div>
         )}
 
